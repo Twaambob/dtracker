@@ -1,0 +1,111 @@
+rules_version = '2';
+
+// SOVEREIGN Debt Tracker - Enterprise Security Rules
+// Last Updated: 2025-12-22
+// Purpose: Defense-in-depth protection against unauthorized access and malicious data
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper Functions for Security Validation
+    
+    // Verify user is authenticated
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    // Verify user owns the resource
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    // Validate string fields (prevent XSS, injection attacks)
+    function isValidString(str, maxLength) {
+      return str is string 
+        && str.size() > 0 
+        && str.size() <= maxLength
+        && !str.matches('.*<script.*')  // Block <script> tags
+        && !str.matches('.*javascript:.*')  // Block javascript: protocol
+        && !str.matches('.*on\\w+\\s*=.*');  // Block event handlers (onclick, onerror, etc.)
+    }
+    
+    // Validate transaction type
+    function isValidTransactionType(type) {
+      return type is string && type in ['credit', 'debt'];
+    }
+    
+    // Validate amount (positive number, reasonable range)
+    function isValidAmount(amount) {
+      return amount is number 
+        && amount > 0 
+        && amount <= 999999999;  // Max: 999 million
+    }
+    
+    // Validate percentage (0-100)
+    function isValidPercentage(percentage) {
+      return percentage is number
+        && percentage >= 0
+        && percentage <= 100;
+    }
+    
+    // Validate transaction schema
+    function isValidTransaction(data) {
+      return isValidTransactionType(data.type)
+        && isValidString(data.name, 100)
+        && isValidAmount(data.amount)
+        && data.cleared is bool
+        && data.createdAt is number
+        && (!('note' in data) || isValidString(data.note, 500))
+        && (!('contact' in data) || isValidString(data.contact, 100))
+        && (!('dueDate' in data) || data.dueDate is string)
+        && (!('returnsPercentage' in data) || isValidPercentage(data.returnsPercentage));
+    }
+    
+    // Rate limiting: max document size to prevent DoS
+    function isValidDocumentSize() {
+      return request.resource.size() < 10000;  // 10KB max per document
+    }
+    
+    // ================================================
+    // USER TRANSACTION DATA (Critical Protection)
+    // ================================================
+    
+    match /artifacts/{appId}/users/{userId}/transactions/{transactionId} {
+      
+      // READ: Only authenticated users can read their own transactions
+      allow read: if isOwner(userId);
+      
+      // CREATE: Validate schema + ownership + size limits
+      allow create: if isOwner(userId) 
+        && isValidTransaction(request.resource.data)
+        && isValidDocumentSize();
+      
+      // UPDATE: Allow owner to update, but maintain schema integrity
+      allow update: if isOwner(userId)
+        && isValidTransaction(request.resource.data)
+        && isValidDocumentSize()
+        && request.resource.data.createdAt == resource.data.createdAt;  // Prevent timestamp manipulation
+      
+      // DELETE: Only owner can delete
+      allow delete: if isOwner(userId);
+    }
+    
+    // ================================================
+    // USER PREFERENCES (Future-proofing)
+    // ================================================
+    
+    match /artifacts/{appId}/users/{userId}/preferences/{document=**} {
+      allow read, write: if isOwner(userId)
+        && isValidDocumentSize();
+    }
+    
+    // ================================================
+    // DENY ALL OTHER PATHS (Default Deny)
+    // ================================================
+    
+    // Any path not explicitly allowed above is denied by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

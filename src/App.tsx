@@ -17,6 +17,12 @@ import {
 import { firebaseConfig, appId } from './firebase.config';
 import { PreferencesProvider, usePreferences } from '@/context/preferences-context';
 import { SettingsDialog } from '@/components/settings/settings-dialog';
+import {
+  isValidEmail,
+  isValidPassword,
+  checkRateLimit,
+  validateTransaction
+} from '@/lib/security';
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -263,11 +269,36 @@ const AuthScreen = ({ onEnter }: { onEnter: () => void }) => {
 
   const handleEmailPassword = async (e: React.FormEvent, isSignUp: boolean) => {
     e.preventDefault();
-    setErrorMessage(''); setIsLoading(true);
-    if (!email || !password) {
-      setErrorMessage("Email and password are required.");
-      setIsLoading(false); return;
+    setErrorMessage('');
+
+    // Rate limiting check
+    if (!checkRateLimit('login', 5, 60000)) {
+      setErrorMessage('Too many login attempts. Please wait a minute before trying again.');
+      return;
     }
+
+    // Validate email
+    if (!isValidEmail(email)) {
+      setErrorMessage('Please enter a valid email address.');
+      return;
+    }
+
+    // Validate password for signup
+    if (isSignUp) {
+      const passwordValidation = isValidPassword(password);
+      if (!passwordValidation.valid) {
+        setErrorMessage(passwordValidation.message);
+        return;
+      }
+    } else {
+      // Basic validation for login
+      if (!password || password.length < 6) {
+        setErrorMessage('Password is required.');
+        return;
+      }
+    }
+
+    setIsLoading(true);
     try {
       if (isSignUp) { await createUserWithEmailAndPassword(auth, email, password); }
       else { await signInWithEmailAndPassword(auth, email, password); }
@@ -509,6 +540,7 @@ const DetailModal = ({ transaction, onClose, onSettle, onDelete }: any) => {
   );
 };
 
+
 const AddModal = ({ isOpen, onClose, onAdd }: any) => {
   const [type, setType] = useState('debt');
   const [name, setName] = useState('');
@@ -516,14 +548,39 @@ const AddModal = ({ isOpen, onClose, onAdd }: any) => {
   const [note, setNote] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [contact, setContact] = useState('');
+  const [returnsPercentage, setReturnsPercentage] = useState('');
+  const [validationError, setValidationError] = useState('');
 
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !amount) return;
-    onAdd({ type, name, amount: parseFloat(amount), note, contact, dueDate, createdAt: Date.now(), cleared: false });
-    setName(''); setAmount(''); setNote(''); setDueDate(''); setContact(''); onClose();
+    setValidationError('');
+
+    // Validate transaction data
+    const validation = validateTransaction({
+      type,
+      name,
+      amount: parseFloat(amount),
+      note,
+      contact,
+      dueDate,
+      returnsPercentage: returnsPercentage ? parseFloat(returnsPercentage) : undefined
+    });
+
+    if (!validation.valid) {
+      setValidationError(validation.errors.join(' '));
+      return;
+    }
+
+    // Use sanitized data
+    onAdd({
+      ...validation.sanitized,
+      createdAt: Date.now(),
+      cleared: false
+    });
+
+    setName(''); setAmount(''); setNote(''); setDueDate(''); setContact(''); setReturnsPercentage(''); setValidationError(''); onClose();
   };
 
   return (
@@ -535,6 +592,11 @@ const AddModal = ({ isOpen, onClose, onAdd }: any) => {
           <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors"><X size={20} /></button>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {validationError && (
+            <div className="flex items-center gap-2 p-3 bg-red-900/30 border border-red-500/50 rounded-lg text-red-300 text-sm">
+              <AlertTriangle size={16} /> <span>{validationError}</span>
+            </div>
+          )}
           <div className="flex bg-black/40 p-1 rounded-lg border border-white/5">
             <button type="button" onClick={() => setType('credit')} className={`flex-1 py-2 rounded-md text-sm font-semibold transition-all duration-300 ${type === 'credit' ? 'bg-emerald-900/40 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'text-gray-500 hover:text-gray-300'}`}>They Owe Me</button>
             <button type="button" onClick={() => setType('debt')} className={`flex-1 py-2 rounded-md text-sm font-semibold transition-all duration-300 ${type === 'debt' ? 'bg-red-900/40 text-red-400 shadow-[0_0_15px_rgba(239,68,68,0.3)]' : 'text-gray-500 hover:text-gray-300'}`}>I Owe Them</button>
@@ -546,6 +608,7 @@ const AddModal = ({ isOpen, onClose, onAdd }: any) => {
             <div className="space-y-2"><label className="text-[10px] text-[#d4af37]/70 uppercase tracking-widest">Due Date</label><div className="relative group"><Calendar className="absolute left-3 top-3 text-gray-500 group-focus-within:text-[#d4af37] transition-colors" size={18} /><input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-xl py-2.5 pl-10 pr-2 text-white focus:outline-none focus:border-[#d4af37]/50 transition-all placeholder:text-gray-700 text-sm [color-scheme:dark]" /></div></div>
             <div className="space-y-2"><label className="text-[10px] text-[#d4af37]/70 uppercase tracking-widest">Contact</label><div className="relative group"><Mail className="absolute left-3 top-3 text-gray-500 group-focus-within:text-[#d4af37] transition-colors" size={18} /><input type="text" placeholder="Contact Info" value={contact} onChange={(e) => setContact(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-white focus:outline-none focus:border-[#d4af37]/50 transition-all placeholder:text-gray-700 text-sm" /></div></div>
           </div>
+          <div className="space-y-2"><label className="text-[10px] text-[#d4af37]/70 uppercase tracking-widest">Returns %</label><div className="relative group"><Zap className="absolute left-3 top-3 text-gray-500 group-focus-within:text-[#d4af37] transition-colors" size={18} /><input type="number" placeholder="e.g. 10" value={returnsPercentage} onChange={(e) => setReturnsPercentage(e.target.value)} min="0" max="100" step="0.1" className="w-full bg-black/40 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-white focus:outline-none focus:border-[#d4af37]/50 transition-all placeholder:text-gray-700 text-sm font-mono" /></div></div>
           <div className="space-y-2"><label className="text-[10px] text-[#d4af37]/70 uppercase tracking-widest">Notes</label><input type="text" placeholder="e.g. Dinner split, Rent" value={note} onChange={(e) => setNote(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-xl py-2.5 px-4 text-white focus:outline-none focus:border-[#d4af37]/50 transition-all placeholder:text-gray-700 text-sm" /></div>
           <button type="submit" className="w-full mt-4 py-3 bg-[#d4af37] hover:bg-[#b5952f] text-black font-bold rounded-xl transition-all shadow-[0_0_20px_rgba(212,175,55,0.2)] hover:shadow-[0_0_30px_rgba(212,175,55,0.4)] flex justify-center items-center gap-2"><Check size={18} /> Confirm Entry</button>
         </form>

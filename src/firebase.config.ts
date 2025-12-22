@@ -1,14 +1,19 @@
 // Firebase Configuration
-// Configured for: debt-tracker-app-7b0bb
+// Using environment variables for security
+
+import { getValidatedEnv } from './lib/env-validator';
+
+// Validate environment variables before initialization
+const env = getValidatedEnv();
 
 export const firebaseConfig = {
-  apiKey: "AIzaSyDvxjV4RAgdbDnzaYiESoMZElLL1cNHiYA",
-  authDomain: "debt-tracker-app-7b0bb.firebaseapp.com",
-  databaseURL: "https://debt-tracker-app-7b0bb-default-rtdb.firebaseio.com",
-  projectId: "debt-tracker-app-7b0bb",
-  storageBucket: "debt-tracker-app-7b0bb.firebasestorage.app",
-  messagingSenderId: "323848348538",
-  appId: "1:323848348538:web:598b914ee5087343002cc3"
+  apiKey: env.VITE_FIREBASE_API_KEY,
+  authDomain: env.VITE_FIREBASE_AUTH_DOMAIN,
+  databaseURL: env.VITE_FIREBASE_DATABASE_URL,
+  projectId: env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: env.VITE_FIREBASE_APP_ID
 };
 
 export const appId = "sovereign-debt-tracker";
