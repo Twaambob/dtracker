@@ -3,7 +3,7 @@ import {
   Plus, TrendingUp, TrendingDown, DollarSign, Shield, Zap, PieChart, Activity,
   User, X, Check, Calendar, Mail, Bell, AlertTriangle, Clock, Lock, Fingerprint,
   ChevronRight, Hash, FileText, LogOut, ArrowRight, UserPlus, MailCheck, Loader2,
-  Send, Target, Scroll, Crown, Skull, MessageSquare, Copy, Settings
+  Send, Target, Scroll, Crown, Skull, MessageSquare, Copy, Settings, Search, Download
 } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import {
@@ -17,12 +17,16 @@ import {
 import { firebaseConfig, appId } from './firebase.config';
 import { PreferencesProvider, usePreferences } from '@/context/preferences-context';
 import { SettingsDialog } from '@/components/settings/settings-dialog';
+import { SearchBar } from '@/components/search/search-bar';
+import { PaymentHistory } from '@/components/payments/payment-history';
+import { AddPaymentModal } from '@/components/payments/add-payment-modal';
 import {
   isValidEmail,
   isValidPassword,
   checkRateLimit,
   validateTransaction
 } from '@/lib/security';
+import { exportTransactionsToCSV } from '@/lib/export-utils';
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
@@ -503,7 +507,7 @@ const NexusPanel = ({ topPriority, onSettle, onSelectTransaction }: any) => {
   );
 };
 
-const DetailModal = ({ transaction, onClose, onSettle, onDelete }: any) => {
+const DetailModal = ({ transaction, onClose, onSettle, onDelete, onAddPayment }: any) => {
   const { formatCurrency: formatMoney } = usePreferences();
   if (!transaction) return null;
   const isCredit = transaction.type === 'credit';
@@ -511,25 +515,44 @@ const DetailModal = ({ transaction, onClose, onSettle, onDelete }: any) => {
   const overdue = isOverdue(transaction.dueDate) && !transaction.cleared;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
       <div className="absolute inset-0 bg-black/90 backdrop-blur-md transition-opacity" onClick={onClose} />
-      <div className="relative w-full max-w-lg bg-[#141414] border border-white/10 rounded-3xl shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-lg bg-[#141414] border border-white/10 rounded-3xl shadow-2xl overflow-hidden my-8">
         <div className={`relative p-8 flex flex-col items-center justify-center border-b border-white/5 ${isCredit ? 'bg-gradient-to-b from-emerald-900/20 to-transparent' : 'bg-gradient-to-b from-red-900/20 to-transparent'}`}>
           <button onClick={onClose} className="absolute top-6 right-6 p-2 rounded-full bg-black/20 text-gray-400 hover:text-white hover:bg-white/10 transition-colors"><X size={20} /></button>
           <div className={`mb-4 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest border ${isCredit ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
             {isCredit ? 'Incoming Credit' : 'Outstanding Debt'}
           </div>
-          <h2 className={`text-5xl font-mono font-bold tracking-tight mb-2 ${isCredit ? 'text-emerald-400' : 'text-red-400'}`}>{formatMoney(transaction.amount)}</h2>
+          <h2 className={`text-5xl font-mono font-bold tracking-tight mb-2 ${isCredit ? 'text-emerald-400' : 'text-red-400'}`}>
+            {transaction.payments?.length > 0 ? formatMoney(transaction.amount - (transaction.payments.reduce((sum: number, p: any) => sum + p.amount, 0))) : formatMoney(transaction.amount)}
+          </h2>
+          {transaction.payments?.length > 0 && (
+            <p className="text-xs text-gray-500 font-mono">of {formatMoney(transaction.amount)} total</p>
+          )}
           <h3 className="text-xl text-white font-serif">{transaction.name}</h3>
         </div>
-        <div className="p-8 space-y-6">
+        <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
           <div className="grid grid-cols-2 gap-6">
             <div className="space-y-1.5"><label className="flex items-center gap-2 text-[10px] text-gray-500 uppercase tracking-widest"><Hash size={12} /> Transaction ID</label><p className="text-sm font-mono text-gray-300 truncate">{transaction.id.slice(0, 8)}...</p></div>
             <div className="space-y-1.5"><label className="flex items-center gap-2 text-[10px] text-gray-500 uppercase tracking-widest"><Calendar size={12} /> Date Added</label><p className="text-sm text-white">{new Date(transaction.createdAt || Date.now()).toLocaleDateString()}</p></div>
-            <div className="space-y-1.5"><label className={`flex items-center gap-2 text-[10px] uppercase tracking-widest ${urgent || overdue ? 'text-[#d4af37]' : 'text-gray-500'}`}><Clock size={12} /> Due Date</label><p className={`text-sm font-medium ${overdue ? 'text-red-500' : urgent ? 'text-[#d4af37]' : 'text-white'}`}>{transaction.dueDate ? new Date(transaction.dueDate).toLocaleDateString() : 'No Deadline'} {overdue && ' (Overdue)'}</p></div>
-            <div className="space-y-1.5"><label className="flex items-center gap-2 text-[10px] text-gray-500 uppercase tracking-widest"><Mail size={12} /> Contact</label><p className="text-sm text-white truncate">{transaction.contact || 'None provided'}</p></div>
           </div>
-          <div className="space-y-1.5"><label className="flex items-center gap-2 text-[10px] text-gray-500 uppercase tracking-widest"><FileText size={12} /> Notes</label><div className="p-4 rounded-xl bg-white/5 border border-white/5 text-sm text-gray-300 min-h-[80px]">{transaction.note || 'No additional notes recorded.'}</div></div>
+
+          {transaction.note && (<div className="space-y-1.5"><label className="flex items-center gap-2 text-[10px] text-gray-500 uppercase tracking-widest"><FileText size={12} /> Notes</label><p className="text-sm text-gray-300">{transaction.note}</p></div>)}
+          {transaction.contact && (<div className="space-y-1.5"><label className="flex items-center gap-2 text-[10px] text-gray-500 uppercase tracking-widest"><Mail size={12} /> Contact</label><p className="text-sm text-white">{transaction.contact}</p></div>)}
+
+          {/* Payment History Section */}
+          {!transaction.cleared && (
+            <div className="pt-4 border-t border-white/10">
+              <PaymentHistory
+                payments={transaction.payments || []}
+                totalAmount={transaction.amount}
+                onAddPayment={() => onAddPayment(transaction)}
+                formatCurrency={formatMoney}
+              />
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-4 border-t border-white/10"><label className={`flex items-center gap-2 text-[10px] uppercase tracking-widest ${urgent || overdue ? 'text-[#d4af37]' : 'text-gray-500'}`}><Clock size={12} /> Due Date</label><p className={`text-sm font-medium ${overdue ? 'text-red-500' : urgent ? 'text-[#d4af37]' : 'text-white'}`}>{transaction.dueDate ? new Date(transaction.dueDate).toLocaleDateString() : 'No Deadline'} {overdue && ' (Overdue)'}</p></div>
           <div className="grid grid-cols-2 gap-4 pt-2">
             <button onClick={() => { onSettle(transaction); onClose(); }} className="flex items-center justify-center gap-2 py-3 rounded-xl bg-white/5 hover:bg-[#d4af37] hover:text-black text-white font-semibold transition-all duration-300"><Check size={18} /> Settle</button>
             <button onClick={() => { onDelete(transaction.id); onClose(); }} className="flex items-center justify-center gap-2 py-3 rounded-xl bg-white/5 hover:bg-red-500/20 hover:text-red-400 text-gray-400 font-semibold transition-all duration-300"><X size={18} /> Delete</button>
@@ -608,7 +631,7 @@ const AddModal = ({ isOpen, onClose, onAdd }: any) => {
             <div className="space-y-2"><label className="text-[10px] text-[#d4af37]/70 uppercase tracking-widest">Due Date</label><div className="relative group"><Calendar className="absolute left-3 top-3 text-gray-500 group-focus-within:text-[#d4af37] transition-colors" size={18} /><input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-xl py-2.5 pl-10 pr-2 text-white focus:outline-none focus:border-[#d4af37]/50 transition-all placeholder:text-gray-700 text-sm [color-scheme:dark]" /></div></div>
             <div className="space-y-2"><label className="text-[10px] text-[#d4af37]/70 uppercase tracking-widest">Contact</label><div className="relative group"><Mail className="absolute left-3 top-3 text-gray-500 group-focus-within:text-[#d4af37] transition-colors" size={18} /><input type="text" placeholder="Contact Info" value={contact} onChange={(e) => setContact(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-white focus:outline-none focus:border-[#d4af37]/50 transition-all placeholder:text-gray-700 text-sm" /></div></div>
           </div>
-          <div className="space-y-2"><label className="text-[10px] text-[#d4af37]/70 uppercase tracking-widest">Returns %</label><div className="relative group"><Zap className="absolute left-3 top-3 text-gray-500 group-focus-within:text-[#d4af37] transition-colors" size={18} /><input type="number" placeholder="e.g. 10" value={returnsPercentage} onChange={(e) => setReturnsPercentage(e.target.value)} min="0" max="100" step="0.1" className="w-full bg-black/40 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-white focus:outline-none focus:border-[#d4af37]/50 transition-all placeholder:text-gray-700 text-sm font-mono" /></div></div>
+          <div className="space-y-2"><label className="text-[10px] text-[#d4af37]/70 uppercase tracking-widest">Returns % (Optional)</label><div className="relative group"><Zap className="absolute left-3 top-3 text-gray-500 group-focus-within:text-[#d4af37] transition-colors" size={18} /><input type="number" placeholder="e.g. 10" value={returnsPercentage} onChange={(e) => setReturnsPercentage(e.target.value)} min="0" max="100" step="0.1" className="w-full bg-black/40 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-white focus:outline-none focus:border-[#d4af37]/50 transition-all placeholder:text-gray-700 text-sm font-mono" /></div></div>
           <div className="space-y-2"><label className="text-[10px] text-[#d4af37]/70 uppercase tracking-widest">Notes</label><input type="text" placeholder="e.g. Dinner split, Rent" value={note} onChange={(e) => setNote(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-xl py-2.5 px-4 text-white focus:outline-none focus:border-[#d4af37]/50 transition-all placeholder:text-gray-700 text-sm" /></div>
           <button type="submit" className="w-full mt-4 py-3 bg-[#d4af37] hover:bg-[#b5952f] text-black font-bold rounded-xl transition-all shadow-[0_0_20px_rgba(212,175,55,0.2)] hover:shadow-[0_0_30px_rgba(212,175,55,0.4)] flex justify-center items-center gap-2"><Check size={18} /> Confirm Entry</button>
         </form>
@@ -677,12 +700,14 @@ function AppContent() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [hasEntered, setHasEntered] = useState(false);
   const [reminderItem, setReminderItem] = useState<any>(null);
   const [activeExplosion, setActiveExplosion] = useState<any>(null);
+  const [paymentTransaction, setPaymentTransaction] = useState<any>(null);
 
   useEffect(() => {
     const initAuth = async () => {
@@ -716,6 +741,18 @@ function AppContent() {
   const netWorth = totalCredit - totalDebt;
   const notifications = transactions.filter(t => (isDueSoon(t.dueDate) || isOverdue(t.dueDate)) && !t.cleared);
 
+  // Search filtering
+  const filteredTransactions = useMemo(() => {
+    if (!searchQuery) return transactions;
+    const query = searchQuery.toLowerCase();
+    return transactions.filter(t => {
+      const matchesName = t.name?.toLowerCase().includes(query);
+      const matchesContact = t.contact?.toLowerCase().includes(query);
+      const matchesNote = t.note?.toLowerCase().includes(query);
+      return matchesName || matchesContact || matchesNote;
+    });
+  }, [transactions, searchQuery]);
+
   const topPriority = useMemo(() => {
     let highestScore = 0; let priorityTransaction = null;
     transactions.filter(t => !t.cleared).forEach(t => {
@@ -738,6 +775,17 @@ function AppContent() {
   const settleTransaction = async (id: string) => {
     if (!user) return;
     await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'transactions', id));
+  };
+
+  const addPayment = async (transactionId: string, payment: { amount: number; date: number; note?: string }) => {
+    if (!user) return;
+    const transactionRef = doc(db, 'artifacts', appId, 'users', user.uid, 'transactions', transactionId);
+    const transaction = transactions.find(t => t.id === transactionId);
+    if (!transaction) return;
+
+    const newPayments = [...(transaction.payments || []), { id: Date.now().toString(), ...payment }];
+    const { updateDoc } = await import('firebase/firestore');
+    await updateDoc(transactionRef, { payments: newPayments });
   };
 
   const handleSettleVisuals = (transaction: any) => {
@@ -766,9 +814,22 @@ function AppContent() {
       )}
 
       <SettingsDialog isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      <AddPaymentModal
+        isOpen={!!paymentTransaction}
+        onClose={() => setPaymentTransaction(null)}
+        onAdd={(payment) => {
+          if (paymentTransaction) {
+            addPayment(paymentTransaction.id, payment);
+            setPaymentTransaction(null);
+          }
+        }}
+        remainingAmount={paymentTransaction ? (paymentTransaction.amount - (paymentTransaction.payments?.reduce((sum: number, p: any) => sum + p.amount, 0) || 0)) : 0}
+        transactionName={paymentTransaction?.name || ''}
+        formatCurrency={formatMoney}
+      />
 
       <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 min-h-screen flex flex-col">
-        <header className="flex justify-between items-center mb-8">
+        <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-[#d4af37] rounded-lg flex items-center justify-center shadow-[0_0_20px_rgba(212,175,55,0.4)]">
               <Shield className="text-black" size={24} strokeWidth={2.5} />
@@ -778,26 +839,46 @@ function AppContent() {
               <p className="text-[10px] text-gray-500 uppercase tracking-[0.2em] leading-none">{user?.email || 'Anonymous Access'} ({user?.uid.slice(0, 8)}...)</p>
             </div>
           </div>
-          <div className="flex gap-4 items-center">
-            <button onClick={() => setIsSettingsOpen(true)} className="p-2.5 rounded-full bg-white/5 border border-white/10 hover:border-[#d4af37] hover:text-[#d4af37] transition-all text-gray-400" title="Preferences">
-              <Settings size={20} />
-            </button>
-            <div className="relative">
-              <button onClick={() => setIsNotifOpen(!isNotifOpen)} className="p-2.5 rounded-full bg-white/5 border border-white/10 hover:border-[#d4af37] hover:text-[#d4af37] transition-all relative">
-                <Bell size={20} />
-                {notifications.length > 0 && (<span className="absolute -top-1 -right-1 w-5 h-5 bg-red-600 rounded-full text-[10px] flex items-center justify-center font-bold text-white shadow-lg animate-pulse">{notifications.length}</span>)}
-              </button>
-              {isNotifOpen && (
-                <div className="absolute right-0 top-full mt-2 w-80 bg-[#1a1a1a] border border-[#d4af37]/30 rounded-xl shadow-2xl z-50 overflow-hidden">
-                  <div className="p-3 border-b border-white/10 bg-[#222]"><h4 className="text-sm font-bold text-[#d4af37] flex items-center gap-2"><AlertTriangle size={14} /> Urgent Attention</h4></div>
-                  <div className="max-h-60 overflow-y-auto">{notifications.length === 0 ? (<p className="p-4 text-xs text-gray-500 text-center">No urgent payments due.</p>) : (notifications.map(n => (<div key={n.id} onClick={() => { setSelectedTransaction(n); setIsNotifOpen(false); }} className="cursor-pointer p-3 border-b border-white/5 hover:bg-white/5 transition-colors flex justify-between items-center"><div><p className="text-sm font-medium text-white">{n.name}</p><p className="text-[10px] text-gray-400">Due: {new Date(n.dueDate).toLocaleDateString()}</p></div><span className={`text-xs font-mono font-bold ${n.type === 'credit' ? 'text-emerald-400' : 'text-red-400'}`}>{formatMoney(n.amount)}</span></div>)))}</div>
-                </div>
-              )}
+          <div className="flex flex-col lg:flex-row gap-3 lg:gap-4 lg:items-center w-full lg:w-auto">
+            <div className="w-full lg:w-72">
+              <SearchBar
+                value={searchQuery}
+                onChange={setSearchQuery}
+                placeholder="Search transactions..."
+              />
             </div>
-            <button onClick={() => setIsModalOpen(true)} className="group flex items-center gap-2 bg-white/5 hover:bg-[#d4af37] hover:text-black border border-white/10 hover:border-[#d4af37] px-5 py-2.5 rounded-full transition-all duration-300 backdrop-blur-md">
-              <Plus size={18} /><span className="text-sm font-semibold hidden sm:inline">New Entry</span><span className="sm:hidden">Add</span>
-            </button>
-            <button onClick={handleLogout} className="p-2.5 rounded-full bg-white/5 border border-white/10 hover:border-red-500 hover:text-red-500 transition-all text-gray-400" title="Lock Terminal"><LogOut size={20} /></button>
+            <div className="flex gap-2 sm:gap-4 items-center justify-end lg:justify-start">
+              {/* Export button - hidden on mobile */}
+              <button
+                onClick={() => exportTransactionsToCSV(transactions)}
+                className="hidden sm:flex p-2.5 rounded-full bg-white/5 border border-white/10 hover:border-emerald-500 hover:text-emerald-400 transition-all text-gray-400"
+                title="Export to CSV"
+              >
+                <Download size={20} />
+              </button>
+              {/* Settings button */}
+              <button onClick={() => setIsSettingsOpen(true)} className="p-2.5 rounded-full bg-white/5 border border-white/10 hover:border-[#d4af37] hover:text-[#d4af37] transition-all text-gray-400" title="Preferences">
+                <Settings size={20} />
+              </button>
+              {/* Notifications */}
+              <div className="relative">
+                <button onClick={() => setIsNotifOpen(!isNotifOpen)} className="p-2.5 rounded-full bg-white/5 border border-white/10 hover:border-[#d4af37] hover:text-[#d4af37] transition-all relative">
+                  <Bell size={20} />
+                  {notifications.length > 0 && (<span className="absolute -top-1 -right-1 w-5 h-5 bg-red-600 rounded-full text-[10px] flex items-center justify-center font-bold text-white shadow-lg animate-pulse">{notifications.length}</span>)}
+                </button>
+                {isNotifOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-2rem)] bg-[#1a1a1a] border border-[#d4af37]/30 rounded-xl shadow-2xl z-50 overflow-hidden">
+                    <div className="p-3 border-b border-white/10 bg-[#222]"><h4 className="text-sm font-bold text-[#d4af37] flex items-center gap-2"><AlertTriangle size={14} /> Urgent Attention</h4></div>
+                    <div className="max-h-60 overflow-y-auto">{notifications.length === 0 ? (<p className="p-4 text-xs text-gray-500 text-center">No urgent payments due.</p>) : (notifications.map(n => (<div key={n.id} onClick={() => { setSelectedTransaction(n); setIsNotifOpen(false); }} className="cursor-pointer p-3 border-b border-white/5 hover:bg-white/5 transition-colors flex justify-between items-center"><div><p className="text-sm font-medium text-white">{n.name}</p><p className="text-[10px] text-gray-400">Due: {new Date(n.dueDate).toLocaleDateString()}</p></div><span className={`text-xs font-mono font-bold ${n.type === 'credit' ? 'text-emerald-400' : 'text-red-400'}`}>{formatMoney(n.amount)}</span></div>)))}</div>
+                  </div>
+                )}
+              </div>
+              {/* Desktop new entry button */}
+              <button onClick={() => setIsModalOpen(true)} className="hidden sm:group sm:flex items-center gap-2 bg-white/5 hover:bg-[#d4af37] hover:text-black border border-white/10 hover:border-[#d4af37] px-5 py-2.5 rounded-full transition-all duration-300 backdrop-blur-md">
+                <Plus size={18} /><span className="text-sm font-semibold">New Entry</span>
+              </button>
+              <button onClick={handleLogout} className="hidden sm:flex p-2.5 rounded-full bg-white/5 border border-white/10 hover:border-red-500 hover:text-red-500 transition-all text-gray-400" title="Lock Terminal"><LogOut size={20} /></button>
+            </div>
           </div>
         </header>
 
@@ -859,21 +940,29 @@ function AppContent() {
                 <div className="flex gap-2 text-xs"><span className="px-2 py-1 rounded bg-white/5 text-gray-400 border border-white/5">Sort: Recent</span></div>
               </div>
               <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-                {transactions.filter(t => { if (activeTab === 'dashboard') return true; if (activeTab === 'credits') return t.type === 'credit'; if (activeTab === 'debts') return t.type === 'debt'; return false; })
+                {filteredTransactions.filter(t => { if (activeTab === 'dashboard') return true; if (activeTab === 'credits') return t.type === 'credit'; if (activeTab === 'debts') return t.type === 'debt'; return false; })
                   .map(t => (<TransactionCard key={t.id} item={t} onClick={setSelectedTransaction} onSettle={handleSettleVisuals} onDelete={deleteTransaction} onRemind={setReminderItem} />))}
-                {transactions.length === 0 && (<div className="h-full flex flex-col items-center justify-center text-gray-600"><Zap size={40} className="mb-4 opacity-20" /><p>No active records found in the ledger.</p></div>)}
+                {filteredTransactions.length === 0 && searchQuery && (<div className="h-full flex flex-col items-center justify-center text-gray-600"><Search size={40} className="mb-4 opacity-20" /><p>No transactions match your search.</p><button onClick={() => setSearchQuery('')} className="mt-2 text-[#d4af37] hover:underline text-sm">Clear search</button></div>)}
+                {transactions.length === 0 && !searchQuery && (<div className="h-full flex flex-col items-center justify-center text-gray-600"><Zap size={40} className="mb-4 opacity-20" /><p>No active records found in the ledger.</p></div>)}
               </div>
             </div>
           </div>
         </div>
-      </div>
+      </div >
 
-      <AddModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onAdd={addTransaction} />
-      <DetailModal transaction={selectedTransaction} onClose={() => setSelectedTransaction(null)} onSettle={handleSettleVisuals} onDelete={deleteTransaction} />
-      <ReminderModal isOpen={!!reminderItem} onClose={() => setReminderItem(null)} transaction={reminderItem} />
+      <AddModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onAdd={addTransaction} />      {selectedTransaction && <DetailModal transaction={selectedTransaction} onClose={() => setSelectedTransaction(null)} onSettle={handleSettleVisuals} onDelete={deleteTransaction} onAddPayment={setPaymentTransaction} />}      <ReminderModal isOpen={!!reminderItem} onClose={() => setReminderItem(null)} transaction={reminderItem} />
+
+      {/* Mobile Floating Action Button */}
+      <button
+        onClick={() => setIsModalOpen(true)}
+        className="sm:hidden fixed bottom-6 right-6 z-50 w-14 h-14 bg-[#d4af37] hover:bg-[#b5952f] rounded-full shadow-[0_0_30px_rgba(212,175,55,0.5)] hover:shadow-[0_0_40px_rgba(212,175,55,0.7)] transition-all flex items-center justify-center"
+        title="New Entry"
+      >
+        <Plus className="text-black" size={24} strokeWidth={2.5} />
+      </button>
 
       <style>{`.custom-scrollbar::-webkit-scrollbar { width: 6px; } .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.02); } .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; } .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(212, 175, 55, 0.5); }`}</style>
-    </div>
+    </div >
   );
 }
 

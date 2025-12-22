@@ -48,6 +48,14 @@ service cloud.firestore {
         && percentage <= 100;
     }
     
+    // Validate payment object
+    function isValidPayment(payment) {
+      return payment.amount is number
+        && payment.amount > 0
+        && payment.date is number
+        && (!('note' in payment) || payment.note is string);
+    }
+    
     // Validate transaction schema
     function isValidTransaction(data) {
       return isValidTransactionType(data.type)
@@ -58,7 +66,8 @@ service cloud.firestore {
         && (!('note' in data) || isValidString(data.note, 500))
         && (!('contact' in data) || isValidString(data.contact, 100))
         && (!('dueDate' in data) || data.dueDate is string)
-        && (!('returnsPercentage' in data) || isValidPercentage(data.returnsPercentage));
+        && (!('returnsPercentage' in data) || isValidPercentage(data.returnsPercentage))
+        && (!('payments' in data) || (data.payments is list && data.payments.size() <= 100));
     }
     
     // Rate limiting: max document size to prevent DoS

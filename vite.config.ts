@@ -5,9 +5,9 @@ import path from 'path'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [
-    react(),
-    tailwindcss(),
+  react(),
+  tailwindcss(),
+    // VitePWA plugin removed due to install issues
   ],
   resolve: {
     alias: {
