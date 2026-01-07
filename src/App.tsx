@@ -829,7 +829,7 @@ function AppContent() {
       />
 
       <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 min-h-screen flex flex-col">
-        <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-8">
+        <header className="flex flex-row items-center justify-between gap-4 mb-8">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-[#d4af37] rounded-lg flex items-center justify-center shadow-[0_0_20px_rgba(212,175,55,0.4)]">
               <Shield className="text-black" size={24} strokeWidth={2.5} />
@@ -839,19 +839,19 @@ function AppContent() {
               <p className="text-[10px] text-gray-500 uppercase tracking-[0.2em] leading-none">{user?.email || 'Anonymous Access'} ({user?.uid.slice(0, 8)}...)</p>
             </div>
           </div>
-          <div className="flex flex-col lg:flex-row gap-3 lg:gap-4 lg:items-center w-full lg:w-auto">
-            <div className="w-full lg:w-72">
+          <div className="flex flex-row gap-4 items-center w-auto">
+            <div className="w-72">
               <SearchBar
                 value={searchQuery}
                 onChange={setSearchQuery}
                 placeholder="Search transactions..."
               />
             </div>
-            <div className="flex gap-2 sm:gap-4 items-center justify-end lg:justify-start">
+            <div className="flex gap-4 items-center justify-start">
               {/* Export button - hidden on mobile */}
               <button
                 onClick={() => exportTransactionsToCSV(transactions)}
-                className="hidden sm:flex p-2.5 rounded-full bg-white/5 border border-white/10 hover:border-emerald-500 hover:text-emerald-400 transition-all text-gray-400"
+                className="flex p-2.5 rounded-full bg-white/5 border border-white/10 hover:border-emerald-500 hover:text-emerald-400 transition-all text-gray-400"
                 title="Export to CSV"
               >
                 <Download size={20} />
@@ -874,22 +874,22 @@ function AppContent() {
                 )}
               </div>
               {/* Desktop new entry button */}
-              <button onClick={() => setIsModalOpen(true)} className="hidden sm:group sm:flex items-center gap-2 bg-white/5 hover:bg-[#d4af37] hover:text-black border border-white/10 hover:border-[#d4af37] px-5 py-2.5 rounded-full transition-all duration-300 backdrop-blur-md">
+              <button onClick={() => setIsModalOpen(true)} className="group flex items-center gap-2 bg-white/5 hover:bg-[#d4af37] hover:text-black border border-white/10 hover:border-[#d4af37] px-5 py-2.5 rounded-full transition-all duration-300 backdrop-blur-md">
                 <Plus size={18} /><span className="text-sm font-semibold">New Entry</span>
               </button>
-              <button onClick={handleLogout} className="hidden sm:flex p-2.5 rounded-full bg-white/5 border border-white/10 hover:border-red-500 hover:text-red-500 transition-all text-gray-400" title="Lock Terminal"><LogOut size={20} /></button>
+              <button onClick={handleLogout} className="flex p-2.5 rounded-full bg-white/5 border border-white/10 hover:border-red-500 hover:text-red-500 transition-all text-gray-400" title="Lock Terminal"><LogOut size={20} /></button>
             </div>
           </div>
         </header>
 
-        <div className="flex-1 flex flex-col lg:grid lg:grid-cols-12 gap-8 overflow-hidden">
+        <div className="flex-1 grid grid-cols-12 gap-8 overflow-hidden">
 
-          <div className="contents lg:flex lg:flex-col lg:col-span-3 lg:gap-5">
-            <div className="order-1 lg:order-none">
+          <div className="flex flex-col col-span-3 gap-5">
+            <div>
               <NexusPanel topPriority={topPriority} onSettle={handleSettleVisuals} onSelectTransaction={setSelectedTransaction} />
             </div>
 
-            <nav className="space-y-2 order-3 lg:order-none mt-4 lg:mt-0">
+            <nav className="space-y-2">
               {[{ id: 'dashboard', label: 'Overview', icon: PieChart }, { id: 'credits', label: 'Incoming', icon: TrendingUp }, { id: 'debts', label: 'Outgoing', icon: TrendingDown }, { id: 'history', label: 'Archive', icon: Activity }].map((item) => (
                 <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 border ${activeTab === item.id ? 'bg-[#d4af37]/10 border-[#d4af37]/50 text-[#d4af37]' : 'bg-transparent border-transparent text-gray-400 hover:bg-white/5 hover:text-white'}`}>
                   <item.icon size={20} /><span className="font-medium">{item.label}</span>{item.id === 'dashboard' && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-[#d4af37] shadow-[0_0_8px_#d4af37]" />}
@@ -897,7 +897,7 @@ function AppContent() {
               ))}
             </nav>
 
-            <div className="order-5 lg:order-none mt-4 lg:mt-auto p-5 rounded-2xl bg-gradient-to-br from-[#151515] to-[#0d0d0d] border border-white/5">
+            <div className="mt-auto p-5 rounded-2xl bg-gradient-to-br from-[#151515] to-[#0d0d0d] border border-white/5">
               <h4 className="text-xs text-gray-500 uppercase tracking-widest mb-2">Liquidity Score</h4>
               <div className="flex items-end gap-2">
                 <span className="text-3xl font-serif text-[#d4af37]">{Math.min(100, Math.max(0, 50 + (netWorth / 100))).toFixed(1)}</span>
@@ -909,8 +909,8 @@ function AppContent() {
             </div>
           </div>
 
-          <div className="contents lg:flex lg:flex-col lg:col-span-9 lg:gap-6 lg:overflow-hidden">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0 order-2 lg:order-none mt-4 lg:mt-0">
+          <div className="flex flex-col col-span-9 gap-6 overflow-hidden">
+            <div className="grid grid-cols-3 gap-4 shrink-0">
               <div className="relative p-6 rounded-2xl bg-white/5 border border-white/5 backdrop-blur-sm overflow-hidden group hover:border-[#d4af37]/30 transition-all">
                 <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Shield size={60} /></div>
                 <p className="text-sm text-gray-400 font-medium">Net Position</p>
@@ -934,7 +934,7 @@ function AppContent() {
               </div>
             </div>
 
-            <div className="flex-1 bg-[#121214]/50 border border-white/5 rounded-3xl backdrop-blur-md flex flex-col overflow-hidden shadow-2xl order-4 lg:order-none mt-4 lg:mt-0 min-h-[400px]">
+            <div className="flex-1 bg-[#121214]/50 border border-white/5 rounded-3xl backdrop-blur-md flex flex-col overflow-hidden shadow-2xl min-h-[400px]">
               <div className="flex items-center justify-between p-6 border-b border-white/5">
                 <h3 className="text-lg font-serif tracking-wide text-white">{activeTab === 'dashboard' ? 'Recent Activity' : activeTab === 'credits' ? 'Incoming Funds' : activeTab === 'debts' ? 'Outstanding Debts' : 'Archive'}</h3>
                 <div className="flex gap-2 text-xs"><span className="px-2 py-1 rounded bg-white/5 text-gray-400 border border-white/5">Sort: Recent</span></div>
@@ -951,15 +951,6 @@ function AppContent() {
       </div >
 
       <AddModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onAdd={addTransaction} />      {selectedTransaction && <DetailModal transaction={selectedTransaction} onClose={() => setSelectedTransaction(null)} onSettle={handleSettleVisuals} onDelete={deleteTransaction} onAddPayment={setPaymentTransaction} />}      <ReminderModal isOpen={!!reminderItem} onClose={() => setReminderItem(null)} transaction={reminderItem} />
-
-      {/* Mobile Floating Action Button */}
-      <button
-        onClick={() => setIsModalOpen(true)}
-        className="sm:hidden fixed bottom-6 right-6 z-50 w-14 h-14 bg-[#d4af37] hover:bg-[#b5952f] rounded-full shadow-[0_0_30px_rgba(212,175,55,0.5)] hover:shadow-[0_0_40px_rgba(212,175,55,0.7)] transition-all flex items-center justify-center"
-        title="New Entry"
-      >
-        <Plus className="text-black" size={24} strokeWidth={2.5} />
-      </button>
 
       <style>{`.custom-scrollbar::-webkit-scrollbar { width: 6px; } .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.02); } .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; } .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(212, 175, 55, 0.5); }`}</style>
     </div >
