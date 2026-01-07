@@ -669,7 +669,7 @@ const TransactionCard = ({ item, onClick, onSettle, onDelete, onRemind }: any) =
       </div>
       <div className="flex items-center gap-4 pl-4">
         <span className={`font-mono font-bold text-lg whitespace-nowrap ${isCredit ? 'text-emerald-400' : 'text-red-400'}`}>{isCredit ? '+' : '-'}{formatMoney(item.amount)}</span>
-        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
           {isCredit && (
             <button onClick={(e) => { e.stopPropagation(); onRemind(item); }} title="Send Royal Decree"
               className="p-2 rounded-lg bg-white/5 hover:bg-blue-500/20 text-white hover:text-blue-400 transition-colors">
@@ -697,6 +697,7 @@ function AppContent() {
     enableVisceralSatisfaction
   } = usePreferences();
   const [user, setUser] = useState<any>(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -720,6 +721,7 @@ function AppContent() {
     initAuth();
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
+      setAuthLoading(false);
       if (currentUser) { setHasEntered(true); } else { setHasEntered(false); }
     });
     return () => unsubscribeAuth();
@@ -804,10 +806,23 @@ function AppContent() {
     catch (error) { console.error("Logout failed:", error); }
   };
 
-  if (!hasEntered) return <AuthScreen onEnter={() => setHasEntered(true)} />;
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0c] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-16 h-16 bg-[#d4af37] rounded-2xl flex items-center justify-center shadow-[0_0_40px_rgba(212,175,55,0.3)] animate-pulse">
+            <Shield className="text-black w-8 h-8" strokeWidth={2.5} />
+          </div>
+          <p className="text-[#d4af37] text-sm font-medium">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) return <AuthScreen onEnter={() => setHasEntered(true)} />;
 
   return (
-    <div className="relative min-h-screen bg-[#0a0a0c] text-white font-sans selection:bg-[#d4af37] selection:text-black overflow-auto animate-in fade-in duration-500">
+    <div className="relative min-h-screen bg-[#0a0a0c] text-white font-sans selection:bg-[#d4af37] selection:text-black overflow-x-auto animate-in fade-in duration-500" style={{ scrollBehavior: 'smooth', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
       {enableVisceralSatisfaction && <ParticleBackground />}
       {activeExplosion && enableVisceralSatisfaction && (
         <ExplosionFX active={activeExplosion.active} x={activeExplosion.x} y={activeExplosion.y} type={activeExplosion.type} onComplete={() => setActiveExplosion(null)} />
@@ -828,7 +843,7 @@ function AppContent() {
         formatCurrency={formatMoney}
       />
 
-      <div className="relative z-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 min-h-screen flex flex-col">
+      <div className="relative z-10 min-w-[800px] max-w-7xl mx-auto px-6 py-6 min-h-screen flex flex-col">
         <header className="flex flex-row items-center justify-between gap-4 mb-8">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-[#d4af37] rounded-lg flex items-center justify-center shadow-[0_0_20px_rgba(212,175,55,0.4)]">
@@ -840,7 +855,7 @@ function AppContent() {
             </div>
           </div>
           <div className="flex flex-row gap-4 items-center w-auto">
-            <div className="w-72">
+            <div className="w-48">
               <SearchBar
                 value={searchQuery}
                 onChange={setSearchQuery}
@@ -882,14 +897,14 @@ function AppContent() {
           </div>
         </header>
 
-        <div className="flex-1 grid grid-cols-12 gap-8 overflow-hidden">
+        <div className="flex-1 flex gap-4">
 
-          <div className="flex flex-col col-span-3 gap-5">
-            <div>
+          <div className="flex flex-col w-52 shrink-0 gap-3">
+            <div className="animate-in fade-in slide-in-from-left-4 duration-500" style={{ animationDelay: '50ms' } as React.CSSProperties}>
               <NexusPanel topPriority={topPriority} onSettle={handleSettleVisuals} onSelectTransaction={setSelectedTransaction} />
             </div>
 
-            <nav className="space-y-2">
+            <nav className="space-y-2 animate-in fade-in slide-in-from-left-4 duration-500" style={{ animationDelay: '150ms' } as React.CSSProperties}>
               {[{ id: 'dashboard', label: 'Overview', icon: PieChart }, { id: 'credits', label: 'Incoming', icon: TrendingUp }, { id: 'debts', label: 'Outgoing', icon: TrendingDown }, { id: 'history', label: 'Archive', icon: Activity }].map((item) => (
                 <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 border ${activeTab === item.id ? 'bg-[#d4af37]/10 border-[#d4af37]/50 text-[#d4af37]' : 'bg-transparent border-transparent text-gray-400 hover:bg-white/5 hover:text-white'}`}>
                   <item.icon size={20} /><span className="font-medium">{item.label}</span>{item.id === 'dashboard' && <div className="ml-auto w-1.5 h-1.5 rounded-full bg-[#d4af37] shadow-[0_0_8px_#d4af37]" />}
@@ -897,7 +912,7 @@ function AppContent() {
               ))}
             </nav>
 
-            <div className="mt-auto p-5 rounded-2xl bg-gradient-to-br from-[#151515] to-[#0d0d0d] border border-white/5">
+            <div className="mt-auto p-5 rounded-2xl bg-gradient-to-br from-[#151515] to-[#0d0d0d] border border-white/5 animate-in fade-in slide-in-from-left-4 duration-500" style={{ animationDelay: '250ms' } as React.CSSProperties}>
               <h4 className="text-xs text-gray-500 uppercase tracking-widest mb-2">Liquidity Score</h4>
               <div className="flex items-end gap-2">
                 <span className="text-3xl font-serif text-[#d4af37]">{Math.min(100, Math.max(0, 50 + (netWorth / 100))).toFixed(1)}</span>
@@ -909,15 +924,15 @@ function AppContent() {
             </div>
           </div>
 
-          <div className="flex flex-col col-span-9 gap-6 overflow-hidden">
+          <div className="flex-1 flex flex-col gap-4 overflow-hidden">
             <div className="grid grid-cols-3 gap-4 shrink-0">
-              <div className="relative p-6 rounded-2xl bg-white/5 border border-white/5 backdrop-blur-sm overflow-hidden group hover:border-[#d4af37]/30 transition-all">
+              <div className="relative p-4 rounded-2xl bg-white/5 border border-white/5 backdrop-blur-sm overflow-hidden group hover:border-[#d4af37]/30 transition-all animate-in fade-in slide-in-from-bottom-4 duration-500" style={{ animationDelay: '100ms' } as React.CSSProperties}>
                 <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity"><Shield size={60} /></div>
                 <p className="text-sm text-gray-400 font-medium">Net Position</p>
                 <h2 className={`text-3xl font-bold mt-1 font-mono ${netWorth >= 0 ? 'text-[#d4af37]' : 'text-red-400'}`}>{formatMoney(netWorth)}</h2>
                 <p className="text-xs text-gray-500 mt-2">Total settled balance</p>
               </div>
-              <div className="relative p-6 rounded-2xl bg-gradient-to-br from-emerald-900/10 to-transparent border border-emerald-500/10 backdrop-blur-sm group hover:border-emerald-500/30 transition-all">
+              <div className="relative p-4 rounded-2xl bg-gradient-to-br from-emerald-900/10 to-transparent border border-emerald-500/10 backdrop-blur-sm group hover:border-emerald-500/30 transition-all animate-in fade-in slide-in-from-bottom-4 duration-500" style={{ animationDelay: '200ms' } as React.CSSProperties}>
                 <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity text-emerald-500"><TrendingUp size={60} /></div>
                 <p className="text-sm text-emerald-500/80 font-medium">Receivables</p>
                 <h2 className="text-3xl font-bold mt-1 text-white font-mono">{formatMoney(totalCredit)}</h2>
@@ -926,7 +941,7 @@ function AppContent() {
                   <div className="w-6 h-6 rounded-full bg-emerald-900 border-2 border-[#121212] flex items-center justify-center text-[8px] text-emerald-400 pl-0.5">{transactions.filter(t => t.type === 'credit').length}</div>
                 </div>
               </div>
-              <div className="relative p-6 rounded-2xl bg-gradient-to-br from-red-900/10 to-transparent border border-red-500/10 backdrop-blur-sm group hover:border-red-500/30 transition-all">
+              <div className="relative p-4 rounded-2xl bg-gradient-to-br from-red-900/10 to-transparent border border-red-500/10 backdrop-blur-sm group hover:border-red-500/30 transition-all animate-in fade-in slide-in-from-bottom-4 duration-500" style={{ animationDelay: '300ms' } as React.CSSProperties}>
                 <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity text-red-500"><TrendingDown size={60} /></div>
                 <p className="text-sm text-red-400/80 font-medium">Payables</p>
                 <h2 className="text-3xl font-bold mt-1 text-white font-mono">{formatMoney(totalDebt)}</h2>
@@ -934,7 +949,7 @@ function AppContent() {
               </div>
             </div>
 
-            <div className="flex-1 bg-[#121214]/50 border border-white/5 rounded-3xl backdrop-blur-md flex flex-col overflow-hidden shadow-2xl min-h-[400px]">
+            <div className="flex-1 bg-[#121214]/50 border border-white/5 rounded-3xl backdrop-blur-md flex flex-col overflow-hidden shadow-2xl min-h-[400px] animate-in fade-in slide-in-from-bottom-6 duration-700" style={{ animationDelay: '400ms' } as React.CSSProperties}>
               <div className="flex items-center justify-between p-6 border-b border-white/5">
                 <h3 className="text-lg font-serif tracking-wide text-white">{activeTab === 'dashboard' ? 'Recent Activity' : activeTab === 'credits' ? 'Incoming Funds' : activeTab === 'debts' ? 'Outstanding Debts' : 'Archive'}</h3>
                 <div className="flex gap-2 text-xs"><span className="px-2 py-1 rounded bg-white/5 text-gray-400 border border-white/5">Sort: Recent</span></div>
@@ -952,7 +967,81 @@ function AppContent() {
 
       <AddModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onAdd={addTransaction} />      {selectedTransaction && <DetailModal transaction={selectedTransaction} onClose={() => setSelectedTransaction(null)} onSettle={handleSettleVisuals} onDelete={deleteTransaction} onAddPayment={setPaymentTransaction} />}      <ReminderModal isOpen={!!reminderItem} onClose={() => setReminderItem(null)} transaction={reminderItem} />
 
-      <style>{`.custom-scrollbar::-webkit-scrollbar { width: 6px; } .custom-scrollbar::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.02); } .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; } .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(212, 175, 55, 0.5); }`}</style>
+      <style>{`
+        * { 
+          scroll-behavior: smooth;
+        }
+        
+        .custom-scrollbar { 
+          -webkit-overflow-scrolling: touch;
+          scroll-behavior: smooth;
+          scrollbar-width: thin;
+          scrollbar-color: rgba(212, 175, 55, 0.3) rgba(255, 255, 255, 0.05);
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar { 
+          width: 8px; 
+          height: 8px;
+        } 
+        
+        .custom-scrollbar::-webkit-scrollbar-track { 
+          background: rgba(255, 255, 255, 0.05); 
+          border-radius: 10px;
+          margin: 4px;
+        } 
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb { 
+          background: linear-gradient(180deg, rgba(212, 175, 55, 0.4), rgba(212, 175, 55, 0.6)); 
+          border-radius: 10px; 
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          box-shadow: 0 0 6px rgba(212, 175, 55, 0.3);
+        } 
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { 
+          background: linear-gradient(180deg, rgba(212, 175, 55, 0.7), rgba(212, 175, 55, 0.9)); 
+          box-shadow: 0 0 12px rgba(212, 175, 55, 0.6);
+        }
+        
+        ::-webkit-scrollbar { 
+          width: 14px; 
+          height: 14px;
+        }
+        
+        ::-webkit-scrollbar-track { 
+          background: linear-gradient(90deg, rgba(10, 10, 12, 0.9), rgba(20, 20, 25, 0.9)); 
+          border-radius: 10px;
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          margin: 2px;
+        }
+        
+        ::-webkit-scrollbar-thumb { 
+          background: linear-gradient(180deg, rgba(212, 175, 55, 0.3), rgba(212, 175, 55, 0.5)); 
+          border-radius: 10px;
+          border: 2px solid rgba(10, 10, 12, 0.5);
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          box-shadow: inset 0 0 6px rgba(212, 175, 55, 0.2), 0 0 8px rgba(212, 175, 55, 0.2);
+        }
+        
+        ::-webkit-scrollbar-thumb:hover { 
+          background: linear-gradient(180deg, rgba(212, 175, 55, 0.6), rgba(212, 175, 55, 0.8));
+          box-shadow: inset 0 0 8px rgba(212, 175, 55, 0.4), 0 0 16px rgba(212, 175, 55, 0.5);
+          border-color: rgba(212, 175, 55, 0.3);
+        }
+        
+        ::-webkit-scrollbar-thumb:active {
+          background: linear-gradient(180deg, rgba(212, 175, 55, 0.8), rgba(212, 175, 55, 1));
+        }
+        
+        ::-webkit-scrollbar-corner {
+          background: rgba(10, 10, 12, 0.9);
+          border-radius: 10px;
+        }
+        
+        * {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(212, 175, 55, 0.5) rgba(10, 10, 12, 0.8);
+        }
+      `}</style>
     </div >
   );
 }

@@ -4,7 +4,13 @@
 <head>
   <meta charset="UTF-8" />
   <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-  <meta name="viewport" content="width=1280, initial-scale=0.25" />
+  <meta name="viewport" content="width=800, initial-scale=0.25" />
+
+  <!-- Preconnect to Firebase for faster loading -->
+  <link rel="preconnect" href="https://firebaseapp.com">
+  <link rel="preconnect" href="https://firebaseio.com">
+  <link rel="dns-prefetch" href="https://www.gstatic.com">
+
   <title>SOVEREIGN - Personal Debt Tracker</title>
 
   <!-- Security Headers: Content Security Policy -->
@@ -36,6 +42,16 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="SOVEREIGN">
   <link rel="apple-touch-icon" href="/icon-192.png">
+
+  <!-- iOS Splash Screens -->
+  <link rel="apple-touch-startup-image" href="/icon-512.png"
+    media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)">
+
+  <!-- Additional PWA Meta -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="application-name" content="SOVEREIGN">
+  <meta name="msapplication-TileColor" content="#d4af37">
+  <meta name="msapplication-tap-highlight" content="no">
 </head>
 
 <body>
