@@ -843,7 +843,7 @@ function AppContent() {
         formatCurrency={formatMoney}
       />
 
-      <div className="relative z-10 min-w-[1000px] max-w-7xl mx-auto px-6 py-6 min-h-screen flex flex-col">
+      <div className="relative z-10 min-w-[600px] max-w-7xl mx-auto px-4 py-4 min-h-screen flex flex-col">
         <header className="flex flex-row items-center justify-between gap-4 mb-8">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-[#d4af37] rounded-lg flex items-center justify-center shadow-[0_0_20px_rgba(212,175,55,0.4)]">
@@ -855,7 +855,7 @@ function AppContent() {
             </div>
           </div>
           <div className="flex flex-row gap-4 items-center w-auto">
-            <div className="w-48">
+            <div className="w-32">
               <SearchBar
                 value={searchQuery}
                 onChange={setSearchQuery}
@@ -897,9 +897,9 @@ function AppContent() {
           </div>
         </header>
 
-        <div className="flex-1 flex gap-4">
+        <div className="flex-1 flex gap-3">
 
-          <div className="flex flex-col w-52 shrink-0 gap-3">
+          <div className="flex flex-col w-40 shrink-0 gap-2">
             <div className="animate-in fade-in slide-in-from-left-4 duration-500" style={{ animationDelay: '50ms' } as React.CSSProperties}>
               <NexusPanel topPriority={topPriority} onSettle={handleSettleVisuals} onSelectTransaction={setSelectedTransaction} />
             </div>
