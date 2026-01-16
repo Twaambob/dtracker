@@ -843,7 +843,7 @@ function AppContent() {
         formatCurrency={formatMoney}
       />
 
-      <div className="relative z-10 min-w-[800px] max-w-7xl mx-auto px-6 py-6 min-h-screen flex flex-col">
+      <div className="relative z-10 min-w-[1000px] max-w-7xl mx-auto px-6 py-6 min-h-screen flex flex-col">
         <header className="flex flex-row items-center justify-between gap-4 mb-8">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-[#d4af37] rounded-lg flex items-center justify-center shadow-[0_0_20px_rgba(212,175,55,0.4)]">
