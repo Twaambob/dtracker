@@ -1,5 +1,4 @@
 
-import React from 'react';
 import { X, Hash, Calendar, FileText, Mail, Clock, Check } from 'lucide-react';
 import { usePreferences } from '@/context/preferences-context';
 import { isDueSoon, isOverdue } from '@/lib/transaction-utils';

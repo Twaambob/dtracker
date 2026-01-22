@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { MessageSquare, Shield, Crown, Skull, Check, Copy, X, Scroll } from 'lucide-react';
 import { usePreferences } from '@/context/preferences-context';
 

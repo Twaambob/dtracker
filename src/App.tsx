@@ -35,8 +35,15 @@ function AppContent() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isNotifOpen, setIsNotifOpen] = useState(false);
-  const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
+
+  // State for selected transaction ID (snapshot of the ID, not the whole object)
+  const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(null);
+
+  // Derived state for the currently selected transaction (always fresh)
+  const selectedTransaction = useMemo(() =>
+    transactions.find(t => t.id === selectedTransactionId) || null
+    , [transactions, selectedTransactionId]);
   const [hasEntered, setHasEntered] = useState(false);
   const [reminderItem, setReminderItem] = useState<any>(null);
   const [activeExplosion, setActiveExplosion] = useState<any>(null);
@@ -48,6 +55,29 @@ function AppContent() {
       setHasEntered(true);
     }
   }, [user, authLoading]);
+
+  // Load transactions function (hoisted to be available for error recovery)
+  const loadTransactions = async () => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error("Error fetching transactions:", error);
+    } else {
+      // Transform snake_case DB data to camelCase for frontend
+      const formattedData = (data || []).map(t => ({
+        ...t,
+        dueDate: t.due_date,
+        returnsPercentage: t.returns_percentage,
+        createdAt: t.created_at,
+      }));
+      setTransactions(formattedData);
+    }
+  };
 
   // Fetch and Subscribe to Transactions
   useEffect(() => {
@@ -65,7 +95,8 @@ function AppContent() {
           filter: `user_id=eq.${user.id}`
         },
         () => {
-          // Reload transactions when any change occurs
+          // Keep real-time sync active (good for multi-device)
+          // But our local optimistic updates will handle immediate feedback
           loadTransactions();
         }
       )
@@ -74,32 +105,11 @@ function AppContent() {
     // Initial load
     loadTransactions();
 
-    async function loadTransactions() {
-      const { data, error } = await supabase
-        .from('transactions')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error("Error fetching transactions:", error);
-      } else {
-        // Transform snake_case DB data to camelCase for frontend
-        const formattedData = (data || []).map(t => ({
-          ...t,
-          dueDate: t.due_date,
-          returnsPercentage: t.returns_percentage,
-          createdAt: t.created_at,
-          // keep original snake_case too if needed, or cleanup
-        }));
-        setTransactions(formattedData);
-      }
-    }
-
     return () => {
       supabase.removeChannel(channel);
     };
   }, [user, hasEntered]);
+
 
   const totalCredit = transactions.filter(t => t.type === 'credit' && !t.cleared).reduce((acc, curr) => acc + curr.amount, 0);
   const totalDebt = transactions.filter(t => t.type === 'debt' && !t.cleared).reduce((acc, curr) => acc + curr.amount, 0);
@@ -333,7 +343,7 @@ function AppContent() {
                 {isNotifOpen && (
                   <div className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-2rem)] bg-[#1a1a1a] border border-[#d4af37]/30 rounded-xl shadow-2xl z-50 overflow-hidden">
                     <div className="p-3 border-b border-white/10 bg-[#222]"><h4 className="text-sm font-bold text-[#d4af37] flex items-center gap-2"><AlertTriangle size={14} /> Urgent Attention</h4></div>
-                    <div className="max-h-60 overflow-y-auto">{notifications.length === 0 ? (<p className="p-4 text-xs text-gray-500 text-center">No urgent payments due.</p>) : (notifications.map(n => (<div key={n.id} onClick={() => { setSelectedTransaction(n); setIsNotifOpen(false); }} className="cursor-pointer p-3 border-b border-white/5 hover:bg-white/5 transition-colors flex justify-between items-center"><div><p className="text-sm font-medium text-white">{n.name}</p><p className="text-[10px] text-gray-400">Due: {new Date(n.dueDate).toLocaleDateString()}</p></div><span className={`text-xs font-mono font-bold ${n.type === 'credit' ? 'text-emerald-400' : 'text-red-400'}`}>{formatMoney(n.amount)}</span></div>)))}</div>
+                    <div className="max-h-60 overflow-y-auto">{notifications.length === 0 ? (<p className="p-4 text-xs text-gray-500 text-center">No urgent payments due.</p>) : (notifications.map(n => (<div key={n.id} onClick={() => { setSelectedTransactionId(n.id); setIsNotifOpen(false); }} className="cursor-pointer p-3 border-b border-white/5 hover:bg-white/5 transition-colors flex justify-between items-center"><div><p className="text-sm font-medium text-white">{n.name}</p><p className="text-[10px] text-gray-400">Due: {new Date(n.dueDate).toLocaleDateString()}</p></div><span className={`text-xs font-mono font-bold ${n.type === 'credit' ? 'text-emerald-400' : 'text-red-400'}`}>{formatMoney(n.amount)}</span></div>)))}</div>
                   </div>
                 )}
               </div>
@@ -350,7 +360,7 @@ function AppContent() {
 
           <div className="flex flex-col w-40 shrink-0 gap-2">
             <div className="animate-in fade-in slide-in-from-left-4 duration-500" style={{ animationDelay: '50ms' } as React.CSSProperties}>
-              <NexusPanel topPriority={topPriority} onSettle={handleSettleVisuals} onSelectTransaction={setSelectedTransaction} />
+              <NexusPanel topPriority={topPriority} onSettle={handleSettleVisuals} onSelectTransaction={(t: any) => setSelectedTransactionId(t.id)} />
             </div>
 
             <nav className="space-y-2 animate-in fade-in slide-in-from-left-4 duration-500" style={{ animationDelay: '150ms' } as React.CSSProperties}>
@@ -405,7 +415,7 @@ function AppContent() {
               </div>
               <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
                 {filteredTransactions.filter(t => { if (activeTab === 'dashboard') return true; if (activeTab === 'credits') return t.type === 'credit'; if (activeTab === 'debts') return t.type === 'debt'; return false; })
-                  .map(t => (<TransactionCard key={t.id} item={t} onClick={setSelectedTransaction} onSettle={handleSettleVisuals} onDelete={deleteTransaction} onRemind={setReminderItem} />))}
+                  .map(t => (<TransactionCard key={t.id} item={t} onClick={(t: any) => setSelectedTransactionId(t.id)} onSettle={handleSettleVisuals} onDelete={deleteTransaction} onRemind={setReminderItem} />))}
                 {filteredTransactions.length === 0 && searchQuery && (<div className="h-full flex flex-col items-center justify-center text-gray-600"><Search size={40} className="mb-4 opacity-20" /><p>No transactions match your search.</p><button onClick={() => setSearchQuery('')} className="mt-2 text-[#d4af37] hover:underline text-sm">Clear search</button></div>)}
                 {transactions.length === 0 && !searchQuery && (<div className="h-full flex flex-col items-center justify-center text-gray-600"><Zap size={40} className="mb-4 opacity-20" /><p>No active records found in the ledger.</p></div>)}
               </div>
@@ -415,7 +425,7 @@ function AppContent() {
       </div >
 
       <AddModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onAdd={addTransaction} />
-      {selectedTransaction && <DetailModal transaction={selectedTransaction} onClose={() => setSelectedTransaction(null)} onSettle={handleSettleVisuals} onDelete={deleteTransaction} onAddPayment={setPaymentTransaction} />}
+      {selectedTransaction && <DetailModal transaction={selectedTransaction} onClose={() => setSelectedTransactionId(null)} onSettle={handleSettleVisuals} onDelete={deleteTransaction} onAddPayment={setPaymentTransaction} />}
       <ReminderModal isOpen={!!reminderItem} onClose={() => setReminderItem(null)} transaction={reminderItem} />
 
       <style>{`

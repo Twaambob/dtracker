@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Zap, Target, Shield, AlertTriangle, ArrowRight, Check, CheckCircle, Send, FileText, DollarSign } from 'lucide-react';
+import { Zap, Target, Shield, ArrowRight, Check, Send, FileText, DollarSign } from 'lucide-react';
 import { usePreferences } from '@/context/preferences-context';
 import { isOverdue } from '@/lib/transaction-utils';
 

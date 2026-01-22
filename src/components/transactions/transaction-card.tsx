@@ -1,5 +1,4 @@
 
-import React from 'react';
 import { TrendingUp, TrendingDown, Clock, Scroll, Check, X, ChevronRight } from 'lucide-react';
 import { usePreferences } from '@/context/preferences-context';
 import { isDueSoon, isOverdue } from '@/lib/transaction-utils';

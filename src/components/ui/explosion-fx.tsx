@@ -1,5 +1,5 @@
 
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 
 export const ExplosionFX = ({ active, x, y, type, onComplete }: any) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
