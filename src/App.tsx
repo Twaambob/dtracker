@@ -1,703 +1,35 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+
+import React, { useState, useEffect, useMemo } from 'react';
 import {
-  Plus, TrendingUp, TrendingDown, DollarSign, Shield, Zap, PieChart, Activity,
-  User, X, Check, Calendar, Mail, Bell, AlertTriangle, Clock, Lock, Fingerprint,
-  ChevronRight, Hash, FileText, LogOut, ArrowRight, UserPlus, MailCheck, Loader2,
-  Send, Target, Scroll, Crown, Skull, MessageSquare, Copy, Settings, Search, Download
+  Plus, TrendingUp, TrendingDown, Shield, Zap, PieChart, Activity,
+  Bell, AlertTriangle, LogOut, Download, Settings, Search
 } from 'lucide-react';
-import { initializeApp } from 'firebase/app';
-import {
-  getAuth, signInAnonymously, onAuthStateChanged, signInWithEmailAndPassword,
-  createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, signOut,
-  signInWithCustomToken, sendPasswordResetEmail
-} from 'firebase/auth';
-import {
-  getFirestore, collection, addDoc, deleteDoc, doc, onSnapshot, query
-} from 'firebase/firestore';
-import { firebaseConfig, appId } from './firebase.config';
+import { AuthProvider, useAuth } from '@/context/auth-context';
 import { PreferencesProvider, usePreferences } from '@/context/preferences-context';
+import { supabase } from '@/lib/supabase';
+import { exportTransactionsToCSV } from '@/lib/export-utils';
+import { getUrgencyScore, isDueSoon, isOverdue } from '@/lib/transaction-utils';
+
+// Components
+import { AuthScreen } from '@/components/auth/auth-screen';
+import { ParticleBackground } from '@/components/ui/particle-background';
+import { ExplosionFX } from '@/components/ui/explosion-fx';
+import { NexusPanel } from '@/components/dashboard/nexus-panel';
+import { TransactionCard } from '@/components/transactions/transaction-card';
+import { AddModal } from '@/components/transactions/add-modal';
+import { DetailModal } from '@/components/transactions/detail-modal';
+import { ReminderModal } from '@/components/ui/reminder-modal';
 import { SettingsDialog } from '@/components/settings/settings-dialog';
 import { SearchBar } from '@/components/search/search-bar';
-import { PaymentHistory } from '@/components/payments/payment-history';
 import { AddPaymentModal } from '@/components/payments/add-payment-modal';
-import {
-  isValidEmail,
-  isValidPassword,
-  checkRateLimit,
-  validateTransaction
-} from '@/lib/security';
-import { exportTransactionsToCSV } from '@/lib/export-utils';
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-
-
-
-const isDueSoon = (dateString?: string) => {
-  if (!dateString) return false;
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const due = new Date(dateString);
-  const diffTime = due.getTime() - today.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  return diffDays <= 7 && diffDays >= 0;
-};
-
-const isOverdue = (dateString?: string) => {
-  if (!dateString) return false;
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const due = new Date(dateString);
-  return due < today;
-};
-
-const getUrgencyScore = (transaction: any) => {
-  let score = 0;
-  const dateString = transaction.dueDate;
-  const amount = transaction.amount || 0;
-  score += transaction.type === 'debt' ? 100 : 50;
-  if (!dateString) { score -= 50; }
-  else {
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const due = new Date(dateString);
-    const diffTime = due.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    if (diffDays < 0) { score += 500; }
-    else if (diffDays <= 1) { score += 300; }
-    else if (diffDays <= 7) { score += 150; }
-    else if (diffDays <= 30) { score += 20; }
-  }
-  score += amount / 10;
-  if (!transaction.cleared) { score += 10; }
-  return Math.round(score);
-};
-
-// --- Feature 4: Visceral Satisfaction Engine (Explosion FX) ---
-const ExplosionFX = ({ active, x, y, type, onComplete }: any) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    if (!active) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-
-    let particles: any[] = [];
-    const particleCount = 60;
-    const colors = type === 'debt'
-      ? ['#ef4444', '#7f1d1d', '#111111', '#555555']
-      : ['#d4af37', '#10b981', '#ffffff', '#fbf5b7'];
-
-    for (let i = 0; i < particleCount; i++) {
-      particles.push({
-        x: x, y: y,
-        vx: (Math.random() - 0.5) * (type === 'debt' ? 15 : 10),
-        vy: (Math.random() - 0.5) * (type === 'debt' ? 15 : 10) - (type === 'credit' ? 5 : 0),
-        size: Math.random() * (type === 'debt' ? 6 : 8),
-        color: colors[Math.floor(Math.random() * colors.length)],
-        life: 1.0, decay: Math.random() * 0.02 + 0.01
-      });
-    }
-
-    let animationFrameId: number;
-    const render = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      let activeParticles = 0;
-      particles.forEach(p => {
-        if (p.life > 0) {
-          activeParticles++;
-          p.x += p.vx; p.y += p.vy; p.vy += 0.2; p.life -= p.decay;
-          ctx.globalAlpha = p.life; ctx.fillStyle = p.color;
-          if (type === 'debt') {
-            ctx.beginPath(); ctx.moveTo(p.x, p.y);
-            ctx.lineTo(p.x + p.size, p.y + p.size * 0.5);
-            ctx.lineTo(p.x + p.size * 0.5, p.y + p.size);
-            ctx.fill();
-          } else {
-            ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
-          }
-        }
-      });
-      if (activeParticles > 0) { animationFrameId = requestAnimationFrame(render); }
-      else { onComplete(); }
-    };
-    render();
-    return () => cancelAnimationFrame(animationFrameId);
-  }, [active, x, y, type, onComplete]);
-
-  if (!active) return null;
-  return <canvas ref={canvasRef} className="fixed inset-0 z-[100] pointer-events-none" />;
-};
-
-const ParticleBackground = () => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    let animationFrameId: number;
-    let particles: any[] = [];
-    const resizeCanvas = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-    };
-    class Particle {
-      x: number; y: number; size: number; speedX: number; speedY: number; opacity: number; color: string;
-      constructor() {
-        this.x = Math.random() * canvas!.width; this.y = Math.random() * canvas!.height;
-        this.size = Math.random() * 2;
-        this.speedX = (Math.random() - 0.5) * 0.5; this.speedY = (Math.random() - 0.5) * 0.5;
-        this.opacity = Math.random() * 0.5; this.color = Math.random() > 0.5 ? '212, 175, 55' : '16, 185, 129';
-      }
-      update() {
-        this.x += this.speedX; this.y += this.speedY;
-        if (this.x > canvas!.width) this.x = 0; if (this.x < 0) this.x = canvas!.width;
-        if (this.y > canvas!.height) this.y = 0; if (this.y < 0) this.y = canvas!.height;
-      }
-      draw() {
-        ctx!.fillStyle = `rgba(${this.color}, ${this.opacity})`;
-        ctx!.beginPath(); ctx!.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx!.fill();
-      }
-    }
-    const init = () => { particles = []; for (let i = 0; i < 70; i++) { particles.push(new Particle()); } };
-    const animate = () => {
-      ctx!.clearRect(0, 0, canvas!.width, canvas!.height);
-      const gradient = ctx!.createLinearGradient(0, 0, canvas!.width, canvas!.height);
-      gradient.addColorStop(0, 'rgba(10, 10, 12, 0)'); gradient.addColorStop(1, 'rgba(20, 20, 25, 0.2)');
-      ctx!.fillStyle = gradient; ctx!.fillRect(0, 0, canvas!.width, canvas!.height);
-      particles.forEach(p => { p.update(); p.draw(); });
-      animationFrameId = requestAnimationFrame(animate);
-    };
-    window.addEventListener('resize', resizeCanvas); resizeCanvas(); init(); animate();
-    return () => { window.removeEventListener('resize', resizeCanvas); cancelAnimationFrame(animationFrameId); };
-  }, []);
-  return <canvas ref={canvasRef} className="fixed top-0 left-0 w-full h-full pointer-events-none z-0" />;
-};
-
-// --- Feature 2: Royal Decree Reminder Modal ---
-const ReminderModal = ({ isOpen, onClose, transaction }: any) => {
-  const { formatCurrency: formatMoney } = usePreferences();
-  const [level, setLevel] = useState<'jester' | 'knight' | 'king' | 'executioner'>('jester');
-  const [copied, setCopied] = useState(false);
-
-  if (!isOpen || !transaction) return null;
-
-  const messages = {
-    jester: {
-      title: "Court Jester", icon: MessageSquare, color: "text-emerald-400", bg: "bg-emerald-900/20", border: "border-emerald-500/30",
-      text: `Hey ${transaction.name.split(' ')[0]}! 👋 Just doing my monthly financial cleanup. Looks like there's still ${formatMoney(transaction.amount)} pending from ${transaction.note || 'our last exchange'}. No rush, just keeping the books tidy! 🃏`
-    },
-    knight: {
-      title: "The Knight", icon: Shield, color: "text-blue-400", bg: "bg-blue-900/20", border: "border-blue-500/30",
-      text: `Greetings ${transaction.name.split(' ')[0]}. I am reviewing the ledger and noted an outstanding balance of ${formatMoney(transaction.amount)}. Kindly remit payment at your earliest convenience to settle this account. 🛡️`
-    },
-    king: {
-      title: "Sovereign Decree", icon: Crown, color: "text-[#d4af37]", bg: "bg-[#d4af37]/10", border: "border-[#d4af37]/50",
-      text: `BY ROYAL DECREE: The Sovereign Ledger demands restitution. An amount of ${formatMoney(transaction.amount)} is outstanding. Immediate action is requested to maintain your standing in the Treasury. 👑`
-    },
-    executioner: {
-      title: "The Executioner", icon: Skull, color: "text-red-500", bg: "bg-red-900/20", border: "border-red-500/50",
-      text: `Silence is acceptance of debt. ${formatMoney(transaction.amount)}. Send it now. Do not make me ask again. ☠️`
-    }
-  };
-
-  const currentMsg = messages[level];
-
-  const handleCopy = () => {
-    const textArea = document.createElement("textarea");
-    textArea.value = currentMsg.text;
-    document.body.appendChild(textArea);
-    textArea.select();
-    document.execCommand('copy');
-    document.body.removeChild(textArea);
-    setCopied(true);
-    setTimeout(() => { setCopied(false); onClose(); }, 1500);
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={onClose} />
-      <div className="relative w-full max-w-md bg-[#1a1a1a] border border-[#d4af37]/30 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
-        <div className="p-6 border-b border-white/5 bg-gradient-to-r from-[#1a1a1a] to-[#252525] flex justify-between items-center">
-          <h2 className="text-xl font-bold text-[#d4af37] font-serif flex items-center gap-2">
-            <Scroll size={20} /> Royal Decree
-          </h2>
-          <button onClick={onClose}><X size={20} className="text-gray-400 hover:text-white" /></button>
-        </div>
-        <div className="p-6 space-y-6">
-          <div className="grid grid-cols-4 gap-2">
-            {(Object.entries(messages) as [string, any][]).map(([key, config]) => (
-              <button key={key} onClick={() => setLevel(key as any)}
-                className={`flex flex-col items-center justify-center p-2 rounded-lg border transition-all ${level === key ? `${config.bg} ${config.border} ${config.color} shadow-lg scale-105` : 'border-transparent hover:bg-white/5 text-gray-500'}`}
-                title={config.title}>
-                <config.icon size={20} />
-                <span className="text-[10px] uppercase font-bold mt-1">{key}</span>
-              </button>
-            ))}
-          </div>
-          <div className={`p-4 rounded-xl border ${currentMsg.border} ${currentMsg.bg} relative group transition-all duration-300`}>
-            <div className="absolute -top-3 left-4 px-2 bg-[#1a1a1a] text-xs font-bold text-gray-400 uppercase tracking-widest">Message Preview</div>
-            <p className={`font-mono text-sm leading-relaxed ${currentMsg.color}`}>"{currentMsg.text}"</p>
-          </div>
-          <button onClick={handleCopy} className={`w-full py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all duration-200 ${copied ? 'bg-emerald-600 text-white' : 'bg-[#d4af37] hover:bg-[#b5952f] text-black'}`}>
-            {copied ? <Check size={18} /> : <Copy size={18} />}
-            {copied ? 'Copied to Clipboard!' : 'Copy & Close'}
-          </button>
-          <p className="text-[10px] text-center text-gray-500">Copying will close this window so you can paste into your messaging app.</p>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const AuthScreen = ({ onEnter }: { onEnter: () => void }) => {
-  const [view, setView] = useState('login');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
-  const [resetSent, setResetSent] = useState(false);
-
-  const handleAuthError = (error: any) => {
-    setIsLoading(false);
-    let msg = 'Authentication failed. Please try again.';
-    if (error.code?.includes('auth/')) {
-      msg = error.message.replace(/Firebase: /g, '').replace(/\(auth-.*\)/g, '').trim();
-    } else { msg = error.message; }
-    setErrorMessage(msg);
-    console.error(error);
-  };
-
-  const handleEmailPassword = async (e: React.FormEvent, isSignUp: boolean) => {
-    e.preventDefault();
-    setErrorMessage('');
-
-    // Rate limiting check
-    if (!checkRateLimit('login', 5, 60000)) {
-      setErrorMessage('Too many login attempts. Please wait a minute before trying again.');
-      return;
-    }
-
-    // Validate email
-    if (!isValidEmail(email)) {
-      setErrorMessage('Please enter a valid email address.');
-      return;
-    }
-
-    // Validate password for signup
-    if (isSignUp) {
-      const passwordValidation = isValidPassword(password);
-      if (!passwordValidation.valid) {
-        setErrorMessage(passwordValidation.message);
-        return;
-      }
-    } else {
-      // Basic validation for login
-      if (!password || password.length < 6) {
-        setErrorMessage('Password is required.');
-        return;
-      }
-    }
-
-    setIsLoading(true);
-    try {
-      if (isSignUp) { await createUserWithEmailAndPassword(auth, email, password); }
-      else { await signInWithEmailAndPassword(auth, email, password); }
-      onEnter();
-    } catch (error) { handleAuthError(error); }
-  };
-
-  const handleGoogleSignIn = async () => {
-    setErrorMessage(''); setIsLoading(true);
-    try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
-      onEnter();
-    } catch (error) { handleAuthError(error); }
-  };
-
-  const handleAnonSignIn = async () => {
-    setErrorMessage(''); setIsLoading(true);
-    try {
-      await signInAnonymously(auth);
-      onEnter();
-    } catch (error) { handleAuthError(error); }
-  };
-
-  const handlePasswordReset = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage(''); setIsLoading(true);
-    if (!email) {
-      setErrorMessage("Please enter your email address.");
-      setIsLoading(false); return;
-    }
-    try {
-      await sendPasswordResetEmail(auth, email);
-      setResetSent(true);
-      setIsLoading(false);
-    } catch (error) { handleAuthError(error); }
-  };
-
-  return (
-    <div className="relative min-h-screen z-50 flex items-center justify-center p-4 bg-[#050505] text-white overflow-auto">
-      <ParticleBackground />
-      <div className="relative z-10 w-full max-w-sm">
-        <div className="text-center mb-8 space-y-2">
-          <div className="w-16 h-16 bg-[#d4af37] mx-auto rounded-2xl flex items-center justify-center shadow-[0_0_40px_rgba(212,175,55,0.3)] mb-4">
-            <Shield className="text-black w-8 h-8" strokeWidth={2.5} />
-          </div>
-          <h1 className="text-3xl font-serif font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#d4af37] to-[#fbf5b7] tracking-wide">
-            SOVEREIGN
-          </h1>
-          <p className="text-[10px] text-gray-500 uppercase tracking-[0.4em]">Personal Ledger</p>
-        </div>
-
-        <div className="bg-[#121212]/80 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl relative overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-b from-[#d4af37]/5 to-transparent pointer-events-none" />
-
-          {view === 'reset' ? (
-            <form onSubmit={handlePasswordReset} className="relative space-y-4">
-              <h3 className="text-[#d4af37] font-serif text-lg font-bold text-center mb-2">Reset Password</h3>
-              {errorMessage && <div className="p-3 bg-red-900/30 border border-red-500/50 rounded-lg text-red-300 text-sm flex items-center gap-2"><AlertTriangle size={16} /><span>{errorMessage}</span></div>}
-              {resetSent ? (
-                <div className="text-center space-y-4">
-                  <div className="w-12 h-12 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto text-emerald-400"><MailCheck size={24} /></div>
-                  <p className="text-sm text-gray-300">Check your inbox! We've sent a password reset link to <span className="text-white font-bold">{email}</span>.</p>
-                  <button onClick={() => { setView('login'); setResetSent(false); }} className="text-[#d4af37] text-sm font-bold hover:underline">Back to Login</button>
-                </div>
-              ) : (
-                <>
-                  <p className="text-xs text-center text-gray-500 mb-4">Enter your email and the Sovereign will dispatch a courier to restore your access.</p>
-                  <div className="space-y-1">
-                    <label className="text-[10px] text-[#d4af37] uppercase tracking-widest font-bold">Email</label>
-                    <div className="relative">
-                      <MailCheck className="absolute left-3 top-3 text-gray-500" size={18} />
-                      <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="user@sovereign.net" className="w-full bg-black/50 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-white focus:outline-none focus:border-[#d4af37] transition-all" required />
-                    </div>
-                  </div>
-                  <button type="submit" disabled={isLoading} className="w-full h-12 bg-[#d4af37] hover:bg-[#b5952f] disabled:opacity-50 text-black font-bold rounded-xl transition-all flex justify-center items-center gap-2">
-                    {isLoading ? <Loader2 className="animate-spin" size={20} /> : <Send size={18} />} <span>Send Reset Link</span>
-                  </button>
-                  <button type="button" onClick={() => setView('login')} className="w-full text-xs text-gray-500 hover:text-white transition-colors">Cancel</button>
-                </>
-              )}
-            </form>
-          ) : (
-            <>
-              <form onSubmit={(e) => handleEmailPassword(e, view === 'signup')} className="relative space-y-4">
-                {errorMessage && (
-                  <div className="flex items-center gap-2 p-3 bg-red-900/30 border border-red-500/50 rounded-lg text-red-300 text-sm">
-                    <AlertTriangle size={16} /> <span>{errorMessage}</span>
-                  </div>
-                )}
-                <div className="space-y-1">
-                  <label className="text-[10px] text-[#d4af37] uppercase tracking-widest font-bold">Email</label>
-                  <div className="relative">
-                    <MailCheck className="absolute left-3 top-3 text-gray-500" size={18} />
-                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="user@sovereign.net"
-                      className="w-full bg-black/50 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-white focus:outline-none focus:border-[#d4af37] transition-all" required />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] text-[#d4af37] uppercase tracking-widest font-bold">Password</label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-3 text-gray-500" size={18} />
-                    <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="********"
-                      className="w-full bg-black/50 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-white focus:outline-none focus:border-[#d4af37] transition-all" required />
-                  </div>
-                </div>
-                <button type="submit" disabled={isLoading} className="w-full h-12 bg-[#d4af37] hover:bg-[#b5952f] disabled:bg-[#d4af37]/50 disabled:cursor-not-allowed text-black font-bold rounded-xl transition-all shadow-[0_0_20px_rgba(212,175,55,0.2)] hover:shadow-[0_0_30px_rgba(212,175,55,0.4)] flex justify-center items-center gap-2">
-                  {isLoading ? <><Loader2 className="animate-spin" size={20} /><span>Processing...</span></> : <>{view === 'login' ? <Lock size={18} /> : <UserPlus size={18} />}<span>{view === 'login' ? 'Authorize Access' : 'Create Account'}</span></>}
-                </button>
-              </form>
-
-              {view === 'login' && (
-                <div className="text-center mt-2">
-                  <button type="button" onClick={() => { setView('reset'); setErrorMessage(''); }} className="text-[10px] text-gray-500 hover:text-[#d4af37] transition-colors">Forgot your password?</button>
-                </div>
-              )}
-
-              <div className="flex items-center my-6">
-                <div className="flex-grow border-t border-white/10" />
-                <span className="px-3 text-xs text-gray-600 uppercase">OR</span>
-                <div className="flex-grow border-t border-white/10" />
-              </div>
-              <div className="space-y-3">
-                <button onClick={handleGoogleSignIn} disabled={isLoading} className="w-full h-12 bg-white/5 hover:bg-white/10 text-white font-semibold rounded-xl transition-all flex justify-center items-center gap-3 border border-white/10 disabled:opacity-50">
-                  <img src="https://upload.wikimedia.org/wikipedia/commons/4/4a/Logo-google.png" alt="Google" className="w-5 h-5" /> Continue with Google
-                </button>
-                <button onClick={handleAnonSignIn} disabled={isLoading} className="w-full h-12 bg-white/5 hover:bg-white/10 text-gray-400 font-semibold rounded-xl transition-all flex justify-center items-center gap-3 border border-white/10 disabled:opacity-50">
-                  <Fingerprint size={18} /> Access Anonymously
-                </button>
-              </div>
-              <div className="mt-8 pt-4 border-t border-white/5 text-center">
-                <button onClick={() => { setView(view === 'login' ? 'signup' : 'login'); setErrorMessage(''); setEmail(''); setPassword(''); }} className="text-xs text-gray-500 hover:text-[#d4af37] transition-colors flex items-center justify-center mx-auto">
-                  {view === 'login' ? 'Need an account? Sign Up' : 'Already registered? Log In'} <ArrowRight size={12} className="ml-1" />
-                </button>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const NexusPanel = ({ topPriority, onSettle, onSelectTransaction }: any) => {
-  const { formatCurrency: formatMoney } = usePreferences();
-  if (!topPriority || topPriority.score < 100) {
-    return (
-      <div className="p-5 rounded-2xl bg-gradient-to-br from-[#151515] to-[#0d0d0d] border border-white/5 h-60 flex flex-col justify-center items-center text-center">
-        <Zap size={30} className="text-gray-600 mb-2 opacity-50" />
-        <h4 className="text-md font-bold text-white mb-1">All Clear.</h4>
-        <p className="text-sm text-gray-500">The Ledger reports no critical priorities.</p>
-        <button className="mt-4 flex items-center gap-2 text-xs font-semibold text-[#d4af37] hover:text-white transition-colors">
-          <Target size={14} /> Review Goal Tracking
-        </button>
-      </div>
-    );
-  }
-
-  const { transaction, score } = topPriority;
-  const isDebt = transaction.type === 'debt';
-  const isOverdueItem = isOverdue(transaction.dueDate);
-  let actionText = '', actionIcon = Check, actionColor = 'bg-[#d4af37] hover:bg-[#b5952f] text-black';
-  let urgencyText = 'Critical Action Required';
-
-  if (isDebt) {
-    actionText = isOverdueItem ? `Pay ${formatMoney(transaction.amount)}` : `Review Payment`;
-    actionIcon = isOverdueItem ? DollarSign : ArrowRight;
-    actionColor = isOverdueItem ? 'bg-red-700 hover:bg-red-600 text-white' : 'bg-[#d4af37] hover:bg-[#b5952f] text-black';
-    urgencyText = isOverdueItem ? 'OVERDUE PAYABLE' : 'URGENT DEBT DUE';
-  } else {
-    actionText = isOverdueItem ? `Send Reminder` : `Grant`;
-    actionIcon = Send;
-    actionColor = 'w-1/2 bg-emerald-700 hover:bg-emerald-600 text-white';
-    urgencyText = isOverdueItem ? 'OVERDUE RECEIVABLE' : 'FOLLOW UP NEEDED';
-  }
-
-  return (
-    <div className={`p-6 rounded-2xl border backdrop-blur-sm shadow-2xl relative h-60 flex flex-col justify-between overflow-hidden
-      ${isOverdueItem ? 'bg-red-900/20 border-red-600/50 shadow-[0_0_30px_rgba(239,68,68,0.3)]' :
-        isDebt ? 'bg-[#d4af37]/10 border-[#d4af37]/50 shadow-[0_0_30px_rgba(212,175,55,0.3)]' :
-          'bg-emerald-900/10 border-emerald-500/50 shadow-[0_0_30px_rgba(16,185,129,0.3)]'}`}>
-      <div className="flex justify-between items-start mb-2">
-        <span className="text-xs uppercase font-bold tracking-widest text-[#d4af37] flex items-center gap-1">
-          <Shield size={12} className="text-[#d4af37]" /> NEXUS PRIORITY
-        </span>
-        <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${isOverdueItem ? 'bg-red-800 text-white' : 'bg-black/20 text-gray-400'}`}>Score: {score}</span>
-      </div>
-      <div>
-        <p className={`text-sm font-medium mb-1 ${isOverdueItem ? 'text-red-300' : 'text-gray-400'}`}>{urgencyText}</p>
-        <h3 className="text-2xl font-bold font-serif text-white truncate" title={transaction.name}>{transaction.name.toUpperCase()}</h3>
-        <h4 className={`text-4xl font-mono font-extrabold mt-1 ${isDebt ? 'text-red-400' : 'text-emerald-400'}`}>{isDebt ? '-' : '+'}{formatMoney(transaction.amount)}</h4>
-      </div>
-      <div className="flex gap-2 mb-4">
-        <button onClick={(e) => { e.stopPropagation(); onSelectTransaction(transaction); }} className="flex-1 py-2.5 px-2 rounded-xl bg-white/5 hover:bg-white/10 text-white font-semibold transition-all flex justify-center items-center gap-2 text-xs lg:text-sm">
-          <FileText size={16} /> Details
-        </button>
-        <button onClick={(e) => { e.stopPropagation(); isDebt ? onSelectTransaction(transaction) : onSettle(transaction); }} className={`flex-1 py-2.5 px-2 rounded-xl font-bold transition-all flex justify-center items-center gap-2 text-xs lg:text-sm ${actionColor}`}>
-          {React.createElement(actionIcon, { size: 16 })} {actionText}
-        </button>
-      </div>
-    </div>
-  );
-};
-
-const DetailModal = ({ transaction, onClose, onSettle, onDelete, onAddPayment }: any) => {
-  const { formatCurrency: formatMoney } = usePreferences();
-  if (!transaction) return null;
-  const isCredit = transaction.type === 'credit';
-  const urgent = isDueSoon(transaction.dueDate) && !transaction.cleared;
-  const overdue = isOverdue(transaction.dueDate) && !transaction.cleared;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
-      <div className="absolute inset-0 bg-black/90 backdrop-blur-md transition-opacity" onClick={onClose} />
-      <div className="relative w-full max-w-lg bg-[#141414] border border-white/10 rounded-3xl shadow-2xl overflow-hidden my-8">
-        <div className={`relative p-8 flex flex-col items-center justify-center border-b border-white/5 ${isCredit ? 'bg-gradient-to-b from-emerald-900/20 to-transparent' : 'bg-gradient-to-b from-red-900/20 to-transparent'}`}>
-          <button onClick={onClose} className="absolute top-6 right-6 p-2 rounded-full bg-black/20 text-gray-400 hover:text-white hover:bg-white/10 transition-colors"><X size={20} /></button>
-          <div className={`mb-4 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest border ${isCredit ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : 'bg-red-500/10 text-red-400 border-red-500/20'}`}>
-            {isCredit ? 'Incoming Credit' : 'Outstanding Debt'}
-          </div>
-          <h2 className={`text-5xl font-mono font-bold tracking-tight mb-2 ${isCredit ? 'text-emerald-400' : 'text-red-400'}`}>
-            {transaction.payments?.length > 0 ? formatMoney(transaction.amount - (transaction.payments.reduce((sum: number, p: any) => sum + p.amount, 0))) : formatMoney(transaction.amount)}
-          </h2>
-          {transaction.payments?.length > 0 && (
-            <p className="text-xs text-gray-500 font-mono">of {formatMoney(transaction.amount)} total</p>
-          )}
-          <h3 className="text-xl text-white font-serif">{transaction.name}</h3>
-        </div>
-        <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
-          <div className="grid grid-cols-2 gap-6">
-            <div className="space-y-1.5"><label className="flex items-center gap-2 text-[10px] text-gray-500 uppercase tracking-widest"><Hash size={12} /> Transaction ID</label><p className="text-sm font-mono text-gray-300 truncate">{transaction.id.slice(0, 8)}...</p></div>
-            <div className="space-y-1.5"><label className="flex items-center gap-2 text-[10px] text-gray-500 uppercase tracking-widest"><Calendar size={12} /> Date Added</label><p className="text-sm text-white">{new Date(transaction.createdAt || Date.now()).toLocaleDateString()}</p></div>
-          </div>
-
-          {transaction.note && (<div className="space-y-1.5"><label className="flex items-center gap-2 text-[10px] text-gray-500 uppercase tracking-widest"><FileText size={12} /> Notes</label><p className="text-sm text-gray-300">{transaction.note}</p></div>)}
-          {transaction.contact && (<div className="space-y-1.5"><label className="flex items-center gap-2 text-[10px] text-gray-500 uppercase tracking-widest"><Mail size={12} /> Contact</label><p className="text-sm text-white">{transaction.contact}</p></div>)}
-
-          {/* Payment History Section */}
-          {!transaction.cleared && (
-            <div className="pt-4 border-t border-white/10">
-              <PaymentHistory
-                payments={transaction.payments || []}
-                totalAmount={transaction.amount}
-                onAddPayment={() => onAddPayment(transaction)}
-                formatCurrency={formatMoney}
-              />
-            </div>
-          )}
-
-          <div className="flex gap-3 pt-4 border-t border-white/10"><label className={`flex items-center gap-2 text-[10px] uppercase tracking-widest ${urgent || overdue ? 'text-[#d4af37]' : 'text-gray-500'}`}><Clock size={12} /> Due Date</label><p className={`text-sm font-medium ${overdue ? 'text-red-500' : urgent ? 'text-[#d4af37]' : 'text-white'}`}>{transaction.dueDate ? new Date(transaction.dueDate).toLocaleDateString() : 'No Deadline'} {overdue && ' (Overdue)'}</p></div>
-          <div className="grid grid-cols-2 gap-4 pt-2">
-            <button onClick={() => { onSettle(transaction); onClose(); }} className="flex items-center justify-center gap-2 py-3 rounded-xl bg-white/5 hover:bg-[#d4af37] hover:text-black text-white font-semibold transition-all duration-300"><Check size={18} /> Settle</button>
-            <button onClick={() => { onDelete(transaction.id); onClose(); }} className="flex items-center justify-center gap-2 py-3 rounded-xl bg-white/5 hover:bg-red-500/20 hover:text-red-400 text-gray-400 font-semibold transition-all duration-300"><X size={18} /> Delete</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-
-const AddModal = ({ isOpen, onClose, onAdd }: any) => {
-  const [type, setType] = useState('debt');
-  const [name, setName] = useState('');
-  const [amount, setAmount] = useState('');
-  const [note, setNote] = useState('');
-  const [dueDate, setDueDate] = useState('');
-  const [contact, setContact] = useState('');
-  const [returnsPercentage, setReturnsPercentage] = useState('');
-  const [validationError, setValidationError] = useState('');
-
-  if (!isOpen) return null;
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setValidationError('');
-
-    // Validate transaction data
-    const validation = validateTransaction({
-      type,
-      name,
-      amount: parseFloat(amount),
-      note,
-      contact,
-      dueDate,
-      returnsPercentage: returnsPercentage ? parseFloat(returnsPercentage) : undefined
-    });
-
-    if (!validation.valid) {
-      setValidationError(validation.errors.join(' '));
-      return;
-    }
-
-    // Use sanitized data
-    onAdd({
-      ...validation.sanitized,
-      createdAt: Date.now(),
-      cleared: false
-    });
-
-    setName(''); setAmount(''); setNote(''); setDueDate(''); setContact(''); setReturnsPercentage(''); setValidationError(''); onClose();
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-md bg-[#1a1a1a] border border-[#d4af37]/30 rounded-2xl shadow-2xl overflow-hidden">
-        <div className="flex justify-between items-center p-6 border-b border-[#d4af37]/10 bg-gradient-to-r from-[#1a1a1a] to-[#252525]">
-          <h2 className="text-xl font-bold text-[#d4af37] font-serif tracking-wide">New Entry</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors"><X size={20} /></button>
-        </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          {validationError && (
-            <div className="flex items-center gap-2 p-3 bg-red-900/30 border border-red-500/50 rounded-lg text-red-300 text-sm">
-              <AlertTriangle size={16} /> <span>{validationError}</span>
-            </div>
-          )}
-          <div className="flex bg-black/40 p-1 rounded-lg border border-white/5">
-            <button type="button" onClick={() => setType('credit')} className={`flex-1 py-2 rounded-md text-sm font-semibold transition-all duration-300 ${type === 'credit' ? 'bg-emerald-900/40 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.3)]' : 'text-gray-500 hover:text-gray-300'}`}>They Owe Me</button>
-            <button type="button" onClick={() => setType('debt')} className={`flex-1 py-2 rounded-md text-sm font-semibold transition-all duration-300 ${type === 'debt' ? 'bg-red-900/40 text-red-400 shadow-[0_0_15px_rgba(239,68,68,0.3)]' : 'text-gray-500 hover:text-gray-300'}`}>I Owe Them</button>
-          </div>
-          {/* Inputs abbreviated for brevity, same as previous */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2 col-span-2"><label className="text-[10px] text-[#d4af37]/70 uppercase tracking-widest">Entity Name</label><div className="relative group"><User className="absolute left-3 top-3 text-gray-500 group-focus-within:text-[#d4af37] transition-colors" size={18} /><input type="text" required placeholder="e.g. John Doe" value={name} onChange={(e) => setName(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-white focus:outline-none focus:border-[#d4af37]/50 transition-all placeholder:text-gray-700" /></div></div>
-            <div className="space-y-2 col-span-2"><label className="text-[10px] text-[#d4af37]/70 uppercase tracking-widest">Amount</label><div className="relative group"><DollarSign className="absolute left-3 top-3 text-gray-500 group-focus-within:text-[#d4af37] transition-colors" size={18} /><input type="number" required placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-white focus:outline-none focus:border-[#d4af37]/50 transition-all placeholder:text-gray-700 font-mono" /></div></div>
-            <div className="space-y-2"><label className="text-[10px] text-[#d4af37]/70 uppercase tracking-widest">Due Date</label><div className="relative group"><Calendar className="absolute left-3 top-3 text-gray-500 group-focus-within:text-[#d4af37] transition-colors" size={18} /><input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-xl py-2.5 pl-10 pr-2 text-white focus:outline-none focus:border-[#d4af37]/50 transition-all placeholder:text-gray-700 text-sm [color-scheme:dark]" /></div></div>
-            <div className="space-y-2"><label className="text-[10px] text-[#d4af37]/70 uppercase tracking-widest">Contact</label><div className="relative group"><Mail className="absolute left-3 top-3 text-gray-500 group-focus-within:text-[#d4af37] transition-colors" size={18} /><input type="text" placeholder="Contact Info" value={contact} onChange={(e) => setContact(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-white focus:outline-none focus:border-[#d4af37]/50 transition-all placeholder:text-gray-700 text-sm" /></div></div>
-          </div>
-          <div className="space-y-2"><label className="text-[10px] text-[#d4af37]/70 uppercase tracking-widest">Returns % (Optional)</label><div className="relative group"><Zap className="absolute left-3 top-3 text-gray-500 group-focus-within:text-[#d4af37] transition-colors" size={18} /><input type="number" placeholder="e.g. 10" value={returnsPercentage} onChange={(e) => setReturnsPercentage(e.target.value)} min="0" max="100" step="0.1" className="w-full bg-black/40 border border-white/10 rounded-xl py-2.5 pl-10 pr-4 text-white focus:outline-none focus:border-[#d4af37]/50 transition-all placeholder:text-gray-700 text-sm font-mono" /></div></div>
-          <div className="space-y-2"><label className="text-[10px] text-[#d4af37]/70 uppercase tracking-widest">Notes</label><input type="text" placeholder="e.g. Dinner split, Rent" value={note} onChange={(e) => setNote(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-xl py-2.5 px-4 text-white focus:outline-none focus:border-[#d4af37]/50 transition-all placeholder:text-gray-700 text-sm" /></div>
-          <button type="submit" className="w-full mt-4 py-3 bg-[#d4af37] hover:bg-[#b5952f] text-black font-bold rounded-xl transition-all shadow-[0_0_20px_rgba(212,175,55,0.2)] hover:shadow-[0_0_30px_rgba(212,175,55,0.4)] flex justify-center items-center gap-2"><Check size={18} /> Confirm Entry</button>
-        </form>
-      </div>
-    </div>
-  );
-};
-
-// --- Updated Transaction Card with Reminder Icon ---
-const TransactionCard = ({ item, onClick, onSettle, onDelete, onRemind }: any) => {
-  const { formatCurrency: formatMoney } = usePreferences();
-  const isCredit = item.type === 'credit';
-  const urgent = isDueSoon(item.dueDate) && !item.cleared;
-  const overdue = isOverdue(item.dueDate) && !item.cleared;
-
-  return (
-    <div onClick={() => onClick(item)}
-      className={`group relative flex items-center justify-between p-4 mb-3 rounded-xl border backdrop-blur-md transition-all duration-300 hover:translate-x-1 cursor-pointer ${overdue ? 'bg-red-900/20 border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.1)]' : urgent ? 'bg-[#d4af37]/10 border-[#d4af37]/40 shadow-[0_0_10px_rgba(212,175,55,0.1)]' : isCredit ? 'bg-emerald-900/5 border-emerald-500/20 hover:bg-emerald-900/10 hover:border-emerald-500/40' : 'bg-red-900/5 border-red-500/20 hover:bg-red-900/10 hover:border-red-500/40'}`}>
-
-      <div className={`absolute left-0 top-2 bottom-2 w-1 rounded-r-full ${overdue ? 'bg-red-600' : urgent ? 'bg-[#d4af37]' : isCredit ? 'bg-emerald-500' : 'bg-red-500'}`} />
-      <div className="flex items-center gap-4 pl-3 flex-1">
-        <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${isCredit ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
-          {isCredit ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
-        </div>
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <h3 className="text-white font-medium truncate">{item.name}</h3>
-            {urgent && <span className="text-[10px] bg-[#d4af37] text-black px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Due Soon</span>}
-            {overdue && <span className="text-[10px] bg-red-600 text-white px-1.5 py-0.5 rounded font-bold uppercase tracking-wider">Overdue</span>}
-          </div>
-          <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
-            {item.dueDate ? (<span className={`flex items-center gap-1 ${urgent || overdue ? 'text-orange-300' : ''}`}><Clock size={10} /> {new Date(item.dueDate).toLocaleDateString()}</span>) : (<span>{item.note || 'No details'}</span>)}
-          </div>
-        </div>
-      </div>
-      <div className="flex items-center gap-4 pl-4">
-        <span className={`font-mono font-bold text-lg whitespace-nowrap ${isCredit ? 'text-emerald-400' : 'text-red-400'}`}>{isCredit ? '+' : '-'}{formatMoney(item.amount)}</span>
-        <div className="flex gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-          {isCredit && (
-            <button onClick={(e) => { e.stopPropagation(); onRemind(item); }} title="Send Royal Decree"
-              className="p-2 rounded-lg bg-white/5 hover:bg-blue-500/20 text-white hover:text-blue-400 transition-colors">
-              <Scroll size={16} />
-            </button>
-          )}
-          <button onClick={(e) => { e.stopPropagation(); onSettle(item); }} title="Settle Up"
-            className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-white hover:text-[#d4af37] transition-colors">
-            <Check size={16} />
-          </button>
-          <button onClick={(e) => { e.stopPropagation(); onDelete(item.id); }} title="Delete"
-            className="p-2 rounded-lg bg-white/5 hover:bg-red-500/20 text-gray-500 hover:text-red-400 transition-colors">
-            <X size={16} />
-          </button>
-        </div>
-        <ChevronRight size={16} className="text-gray-600 group-hover:text-white transition-colors" />
-      </div>
-    </div>
-  );
-};
 
 function AppContent() {
+  const { user, loading: authLoading, signOut } = useAuth();
   const {
     formatCurrency: formatMoney,
     enableVisceralSatisfaction
   } = usePreferences();
-  const [user, setUser] = useState<any>(null);
-  const [authLoading, setAuthLoading] = useState(true);
+
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -710,32 +42,63 @@ function AppContent() {
   const [activeExplosion, setActiveExplosion] = useState<any>(null);
   const [paymentTransaction, setPaymentTransaction] = useState<any>(null);
 
+  // Auto-enter if user is already logged in
   useEffect(() => {
-    const initAuth = async () => {
-      try {
-        if ((window as any).__initial_auth_token) {
-          await signInWithCustomToken(auth, (window as any).__initial_auth_token);
-        }
-      } catch (e) { console.error("Initial Auth failed", e); }
-    };
-    initAuth();
-    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
-      setAuthLoading(false);
-      if (currentUser) { setHasEntered(true); } else { setHasEntered(false); }
-    });
-    return () => unsubscribeAuth();
-  }, []);
+    if (user && !authLoading) {
+      setHasEntered(true);
+    }
+  }, [user, authLoading]);
 
+  // Fetch and Subscribe to Transactions
   useEffect(() => {
     if (!user || !hasEntered) return;
-    const q = query(collection(db, 'artifacts', appId, 'users', user.uid, 'transactions'));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      data.sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
-      setTransactions(data);
-    }, (error) => console.error("Error fetching transactions:", error));
-    return () => unsubscribe();
+
+    // Set up real-time subscription to transactions
+    const channel = supabase
+      .channel('transactions_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'transactions',
+          filter: `user_id=eq.${user.id}`
+        },
+        () => {
+          // Reload transactions when any change occurs
+          loadTransactions();
+        }
+      )
+      .subscribe();
+
+    // Initial load
+    loadTransactions();
+
+    async function loadTransactions() {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error("Error fetching transactions:", error);
+      } else {
+        // Transform snake_case DB data to camelCase for frontend
+        const formattedData = (data || []).map(t => ({
+          ...t,
+          dueDate: t.due_date,
+          returnsPercentage: t.returns_percentage,
+          createdAt: t.created_at,
+          // keep original snake_case too if needed, or cleanup
+        }));
+        setTransactions(formattedData);
+      }
+    }
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user, hasEntered]);
 
   const totalCredit = transactions.filter(t => t.type === 'credit' && !t.cleared).reduce((acc, curr) => acc + curr.amount, 0);
@@ -758,36 +121,94 @@ function AppContent() {
   const topPriority = useMemo(() => {
     let highestScore = 0; let priorityTransaction = null;
     transactions.filter(t => !t.cleared).forEach(t => {
-      const score = getUrgencyScore(t);
-      if (score > highestScore) { highestScore = score; priorityTransaction = t; }
+      // Map back to camelCase for utility function if needed, or update utility
+      // actually getUrgencyScore expects .dueDate. 
+      // The transactions state currently comes straight from DB (snake_case).
+      // We need to either transform data on load OR update utilities to handle snake_case.
+      // Let's transform on load to keep frontend consistent camelCase.
+      const camelT = {
+        ...t,
+        dueDate: t.due_date,
+        returnsPercentage: t.returns_percentage,
+        createdAt: t.created_at
+      };
+
+      const score = getUrgencyScore(camelT);
+      if (score > highestScore) { highestScore = score; priorityTransaction = camelT; }
     });
     return priorityTransaction ? { transaction: priorityTransaction, score: highestScore } : null;
   }, [transactions]);
 
   const addTransaction = async (transaction: any) => {
     if (!user) return;
-    await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'transactions'), transaction);
+
+    // Map camelCase to snake_case for Supabase
+    const dbTransaction = {
+      user_id: user.id,
+      type: transaction.type,
+      name: transaction.name,
+      amount: transaction.amount,
+      note: transaction.note,
+      contact: transaction.contact,
+      due_date: transaction.dueDate, // camelCase -> snake_case
+      returns_percentage: transaction.returnsPercentage, // camelCase -> snake_case
+      cleared: transaction.cleared,
+      created_at: new Date().toISOString() // Ensure ISO string for timestamptz
+    };
+
+    const { error } = await supabase
+      .from('transactions')
+      .insert([dbTransaction]);
+
+    if (error) {
+      console.error("Error adding transaction:", error);
+      alert(`Error adding transaction: ${error.message}`);
+    }
   };
 
   const deleteTransaction = async (id: string) => {
     if (!user) return;
-    await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'transactions', id));
+    const { error } = await supabase
+      .from('transactions')
+      .delete()
+      .eq('id', id);
+    if (error) console.error("Error deleting transaction:", error);
   };
 
   const settleTransaction = async (id: string) => {
     if (!user) return;
-    await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'transactions', id));
+    // For now, we delete when settled, could be changed to update 'cleared' status if soft delete is preferred
+    // Based on original logic, it seems it deletes. Let's stick to delete for "settle" unless we want soft delete.
+    // Actually, looking at original code: settleTransaction calls delete. 
+    // BUT detail modal has "cleared" check. Usually settle means mark cleared.
+    // The original code had:
+    // const settleTransaction = async (id) => { ... .delete().eq('id', id) }
+    // So it was deleting. I will keep it as delete for now to match behavior, 
+    // but typically a soft delete (update cleared=true) involves:
+    // .update({ cleared: true }).eq('id', id)
+
+    // START FIX: Let's use UPDATE to cleared=true so we keep history if desired?
+    // The original code explicitly commented: "Mark as cleared instead of deleting" BUT called delete().
+    // I will use delete() to maintain strict parity with what I read in Step 69.
+
+    const { error } = await supabase
+      .from('transactions')
+      .delete()
+      .eq('id', id);
+    if (error) console.error("Error settling transaction:", error);
   };
 
   const addPayment = async (transactionId: string, payment: { amount: number; date: number; note?: string }) => {
     if (!user) return;
-    const transactionRef = doc(db, 'artifacts', appId, 'users', user.uid, 'transactions', transactionId);
     const transaction = transactions.find(t => t.id === transactionId);
     if (!transaction) return;
 
     const newPayments = [...(transaction.payments || []), { id: Date.now().toString(), ...payment }];
-    const { updateDoc } = await import('firebase/firestore');
-    await updateDoc(transactionRef, { payments: newPayments });
+    const { error } = await supabase
+      .from('transactions')
+      .update({ payments: newPayments })
+      .eq('id', transactionId);
+    if (error) console.error("Error adding payment:", error);
   };
 
   const handleSettleVisuals = (transaction: any) => {
@@ -802,7 +223,11 @@ function AppContent() {
   };
 
   const handleLogout = async () => {
-    try { await signOut(auth); setTransactions([]); setHasEntered(false); }
+    try {
+      await signOut();
+      setTransactions([]);
+      setHasEntered(false);
+    }
     catch (error) { console.error("Logout failed:", error); }
   };
 
@@ -819,7 +244,7 @@ function AppContent() {
     );
   }
 
-  if (!user) return <AuthScreen onEnter={() => setHasEntered(true)} />;
+  if (!user || !hasEntered) return <AuthScreen onEnter={() => setHasEntered(true)} />;
 
   return (
     <div className="relative min-h-screen bg-[#0a0a0c] text-white font-sans selection:bg-[#d4af37] selection:text-black overflow-x-auto animate-in fade-in duration-500" style={{ scrollBehavior: 'smooth', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
@@ -851,7 +276,7 @@ function AppContent() {
             </div>
             <div>
               <h1 className="text-2xl font-bold font-serif text-transparent bg-clip-text bg-gradient-to-r from-[#d4af37] to-[#fbf5b7]">SOVEREIGN</h1>
-              <p className="text-[10px] text-gray-500 uppercase tracking-[0.2em] leading-none">{user?.email || 'Anonymous Access'} ({user?.uid.slice(0, 8)}...)</p>
+              <p className="text-[10px] text-gray-500 uppercase tracking-[0.2em] leading-none">{user?.email || 'Authenticated'} ({user?.id.slice(0, 8)}...)</p>
             </div>
           </div>
           <div className="flex flex-row gap-4 items-center w-auto">
@@ -965,7 +390,9 @@ function AppContent() {
         </div>
       </div >
 
-      <AddModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onAdd={addTransaction} />      {selectedTransaction && <DetailModal transaction={selectedTransaction} onClose={() => setSelectedTransaction(null)} onSettle={handleSettleVisuals} onDelete={deleteTransaction} onAddPayment={setPaymentTransaction} />}      <ReminderModal isOpen={!!reminderItem} onClose={() => setReminderItem(null)} transaction={reminderItem} />
+      <AddModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onAdd={addTransaction} />
+      {selectedTransaction && <DetailModal transaction={selectedTransaction} onClose={() => setSelectedTransaction(null)} onSettle={handleSettleVisuals} onDelete={deleteTransaction} onAddPayment={setPaymentTransaction} />}
+      <ReminderModal isOpen={!!reminderItem} onClose={() => setReminderItem(null)} transaction={reminderItem} />
 
       <style>{`
         * { 
@@ -1049,7 +476,9 @@ function AppContent() {
 export default function App() {
   return (
     <PreferencesProvider>
-      <AppContent />
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
     </PreferencesProvider>
   );
 }

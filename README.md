@@ -1,12 +1,12 @@
 # SOVEREIGN - Personal Debt Tracker
 
-A premium financial management application built with React, TypeScript, Firebase, and Tailwind CSS.
+A premium financial management application built with React, TypeScript, Supabase, and Tailwind CSS.
 
 ## Features
 
-- 🔐 **Multiple Authentication Methods**: Email/Password, Google, Anonymous
+- 🔐 **Multiple Authentication Methods**: Email/Password, Google OAuth
 - 🎯 **Smart Priority System**: Nexus Panel automatically highlights the most urgent transactions
-- ⚡ **Real-time Sync**: All transactions sync across devices using Firebase
+- ⚡ **Real-time Sync**: All transactions sync across devices using Supabase real-time
 - 🎨 **Premium UI**: Particle background animations, glassmorphism, and modern design
 - 📊 **Comprehensive Tracking**: Manage both credits (money owed to you) and debts (money you owe)
 - 🔔 **Smart Notifications**: Get alerted for due and overdue transactions
@@ -14,67 +14,49 @@ A premium financial management application built with React, TypeScript, Firebas
 
 ## Setup Instructions
 
-### 1. Firebase Configuration
+### Quick Start
 
-1. Go to [Firebase Console](https://console.firebase.google.com)
-2. Create a new project or select an existing one
-3. Enable the following in your Firebase project:
-   - **Authentication**: Email/Password, Google, Anonymous
-   - **Firestore Database**: Create a database in production mode
+1. **Clone the repository**
+   ```bash
+   git clone <your-repo-url>
+   cd dtracker
+   ```
 
-4. Get your Firebase configuration:
-   - Go to Project Settings > General
-   - Scroll down to "Your apps" section
-   - Click the web icon (`</>`) to create a web app
-   - Copy the `firebaseConfig` object
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
 
-5. Update `src/firebase.config.ts` with your credentials:
+3. **Set up Supabase**
+   
+   Follow the detailed setup guide: [SUPABASE_SETUP.md](./SUPABASE_SETUP.md)
+   
+   Quick summary:
+   - Create a Supabase project at [supabase.com](https://supabase.com)
+   - Run the SQL schema from the setup guide
+   - Enable Email and Google auth providers
+   - Copy your project credentials
 
-```typescript
-export const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
-};
+4. **Configure environment variables**
+   ```bash
+   cp .env.template .env.local
+   ```
+   
+   Then edit `.env.local` with your Supabase credentials:
+   ```bash
+   VITE_SUPABASE_URL=https://your-project.supabase.co
+   VITE_SUPABASE_ANON_KEY=your_anon_key_here
+   ```
 
-export const appId = "sovereign-debt-tracker";
-```
+5. **Run the development server**
+   ```bash
+   npm run dev
+   ```
 
-### 2. Firestore Security Rules
-
-Add these security rules in Firebase Console > Firestore Database > Rules:
-
-```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /artifacts/{appId}/users/{userId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-  }
-}
-```
-
-### 3. Install Dependencies
-
-```bash
-npm install
-```
-
-### 4. Run the Development Server
-
-```bash
-npm run dev
-```
-
-### 5. Build for Production
-
-```bash
-npm run build
-```
+6. **Build for production**
+   ```bash
+   npm run build
+   ```
 
 ## Usage Guide
 
@@ -129,18 +111,18 @@ The Nexus Panel uses an intelligent scoring algorithm to highlight your most urg
 
 - **Frontend**: React 19 + TypeScript
 - **Styling**: Tailwind CSS v4
-- **Authentication**: Firebase Auth
-- **Database**: Firebase Firestore
+- **Authentication**: Supabase Auth
+- **Database**: Supabase (PostgreSQL)
 - **Icons**: Lucide React
 - **Build Tool**: Vite
-- **Deployment**: Ready for Vercel, Netlify, or Firebase Hosting
+- **Deployment**: Ready for Vercel, Netlify, or Supabase hosting
 
 ## Project Structure
 
 ```
 src/
 ├── App.tsx                 # Main application with all components
-├── firebase.config.ts      # Firebase configuration (UPDATE THIS!)
+├── supabase.config.ts      # Supabase configuration
 ├── index.css              # Global styles and Tailwind
 └── main.tsx               # Application entry point
 ```
@@ -154,19 +136,21 @@ src/
 
 ## Troubleshooting
 
-### "Firebase not initialized" error
-- Make sure you've updated `src/firebase.config.ts` with your actual credentials
-- Verify your Firebase project has Authentication and Firestore enabled
+### "Missing required environment variables" error
+- Make sure `.env.local` exists in your project root
+- Check that variable names match exactly: `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`
+- Restart the dev server after changing `.env.local`
 
 ### Authentication issues
-- Check that Email/Password auth is enabled in Firebase Console
-- For Google Sign-In, ensure the OAuth client is properly configured
-- For Anonymous auth, make sure it's enabled in Firebase Console
+- Check that Email/Password auth is enabled in Supabase Dashboard
+- For Google Sign-In, ensure the OAuth client credentials are correct
+- Check browser console for specific error messages
 
 ### Transactions not syncing
-- Verify Firestore rules are correctly configured
-- Check browser console for any permission errors
+- Verify the database schema was created successfully
+- Check that Row Level Security (RLS) policies are active
 - Ensure you're authenticated before adding transactions
+- Check browser console and Supabase logs for errors
 
 ## License
 
@@ -174,4 +158,7 @@ MIT
 
 ## Support
 
-For issues or questions, please check the Firebase documentation or open an issue in the repository.
+For issues or questions:
+- Check [SUPABASE_SETUP.md](./SUPABASE_SETUP.md) for detailed setup instructions
+- Review the [Supabase documentation](https://supabase.com/docs)
+- Open an issue in the repository

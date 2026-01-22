@@ -2,17 +2,12 @@
  * Environment Variable Validator
  * 
  * Fail-fast validation of required environment variables
- * Prevents app initialization with missing or invalid Firebase credentials
+ * Prevents app initialization with missing or invalid Supabase credentials
  */
 
 interface EnvConfig {
-  VITE_FIREBASE_API_KEY: string;
-  VITE_FIREBASE_AUTH_DOMAIN: string;
-  VITE_FIREBASE_DATABASE_URL: string;
-  VITE_FIREBASE_PROJECT_ID: string;
-  VITE_FIREBASE_STORAGE_BUCKET: string;
-  VITE_FIREBASE_MESSAGING_SENDER_ID: string;
-  VITE_FIREBASE_APP_ID: string;
+  VITE_SUPABASE_URL: string;
+  VITE_SUPABASE_ANON_KEY: string;
 }
 
 /**
@@ -20,13 +15,8 @@ interface EnvConfig {
  */
 function validateEnvVars(): EnvConfig {
   const requiredVars: (keyof EnvConfig)[] = [
-    'VITE_FIREBASE_API_KEY',
-    'VITE_FIREBASE_AUTH_DOMAIN',
-    'VITE_FIREBASE_DATABASE_URL',
-    'VITE_FIREBASE_PROJECT_ID',
-    'VITE_FIREBASE_STORAGE_BUCKET',
-    'VITE_FIREBASE_MESSAGING_SENDER_ID',
-    'VITE_FIREBASE_APP_ID',
+    'VITE_SUPABASE_URL',
+    'VITE_SUPABASE_ANON_KEY',
   ];
 
   const missing: string[] = [];
@@ -45,7 +35,7 @@ function validateEnvVars(): EnvConfig {
   if (missing.length > 0) {
     throw new Error(
       `Missing required environment variables:\n${missing.join('\n')}\n\n` +
-      `Please ensure .env.local exists and contains all Firebase credentials.\n` +
+      `Please ensure .env.local exists and contains all Supabase credentials.\n` +
       `See .env.template for the required format.`
     );
   }
@@ -54,42 +44,17 @@ function validateEnvVars(): EnvConfig {
 }
 
 /**
- * Validate Firebase configuration format
+ * Validate Supabase configuration format
  */
-function validateFirebaseConfig(config: EnvConfig): void {
-  // Validate API Key format (should be alphanumeric, ~39 chars)
-  if (!/^[A-Za-z0-9_-]{35,45}$/.test(config.VITE_FIREBASE_API_KEY)) {
-    console.warn('⚠️ Firebase API Key format looks unusual. Please verify it\'s correct.');
+function validateSupabaseConfig(config: EnvConfig): void {
+  // Validate Supabase URL format (should be https://*.supabase.co)
+  if (!config.VITE_SUPABASE_URL.match(/^https:\/\/[a-z0-9-]+\.supabase\.co$/)) {
+    console.warn('⚠️ Supabase URL format looks unusual. Should be https://your-project.supabase.co');
   }
 
-  // Validate Auth Domain format (should end with .firebaseapp.com)
-  if (!config.VITE_FIREBASE_AUTH_DOMAIN.endsWith('.firebaseapp.com')) {
-    console.warn('⚠️ Firebase Auth Domain should end with .firebaseapp.com');
-  }
-
-  // Validate Database URL format
-  if (!config.VITE_FIREBASE_DATABASE_URL.startsWith('https://')) {
-    console.warn('⚠️ Firebase Database URL should start with https://');
-  }
-
-  // Validate Project ID (alphanumeric with hyphens)
-  if (!/^[a-z0-9-]+$/.test(config.VITE_FIREBASE_PROJECT_ID)) {
-    console.warn('⚠️ Firebase Project ID format looks unusual.');
-  }
-
-  // Validate Storage Bucket (should end with .appspot.com or .firebasestorage.app)
-  if (!config.VITE_FIREBASE_STORAGE_BUCKET.match(/\.(appspot\.com|firebasestorage\.app)$/)) {
-    console.warn('⚠️ Firebase Storage Bucket format looks unusual.');
-  }
-
-  // Validate Messaging Sender ID (should be numeric)
-  if (!/^\d+$/.test(config.VITE_FIREBASE_MESSAGING_SENDER_ID)) {
-    console.warn('⚠️ Firebase Messaging Sender ID should be numeric.');
-  }
-
-  // Validate App ID format
-  if (!config.VITE_FIREBASE_APP_ID.includes(':')) {
-    console.warn('⚠️ Firebase App ID format looks unusual.');
+  // Validate Anon Key format (should be a JWT-like string)
+  if (config.VITE_SUPABASE_ANON_KEY.length < 100) {
+    console.warn('⚠️ Supabase Anon Key seems too short. Please verify it\'s correct.');
   }
 }
 
@@ -99,7 +64,7 @@ function validateFirebaseConfig(config: EnvConfig): void {
  */
 export function getValidatedEnv(): EnvConfig {
   const config = validateEnvVars();
-  validateFirebaseConfig(config);
+  validateSupabaseConfig(config);
 
   console.log('✅ Environment variables validated successfully');
 
