@@ -358,7 +358,7 @@ function AppContent() {
 
         <div className="flex-1 flex gap-3">
 
-          <div className="flex flex-col w-40 shrink-0 gap-2">
+          <div className="flex flex-col w-52 shrink-0 gap-3">
             <div className="animate-in fade-in slide-in-from-left-4 duration-500" style={{ animationDelay: '50ms' } as React.CSSProperties}>
               <NexusPanel topPriority={topPriority} onSettle={handleSettleVisuals} onSelectTransaction={(t: any) => setSelectedTransactionId(t.id)} />
             </div>
