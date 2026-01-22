@@ -5,6 +5,7 @@ import { usePreferences } from '@/context/preferences-context';
 import { isOverdue } from '@/lib/transaction-utils';
 
 export const NexusPanel = ({ topPriority, onSettle, onSelectTransaction }: any) => {
+    // Layout updated for mobile responsiveness
     const { formatCurrency: formatMoney } = usePreferences();
     if (!topPriority || topPriority.score < 100) {
         return (
