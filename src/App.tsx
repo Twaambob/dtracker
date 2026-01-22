@@ -156,46 +156,60 @@ function AppContent() {
       created_at: new Date().toISOString() // Ensure ISO string for timestamptz
     };
 
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('transactions')
-      .insert([dbTransaction]);
+      .insert([dbTransaction])
+      .select() // Return the inserted data
+      .single();
 
     if (error) {
       console.error("Error adding transaction:", error);
       alert(`Error adding transaction: ${error.message}`);
+    } else if (data) {
+      // Optimistically update UI
+      const newTransaction = {
+        ...data,
+        dueDate: data.due_date,
+        returnsPercentage: data.returns_percentage,
+        createdAt: data.created_at
+      };
+      setTransactions(prev => [newTransaction, ...prev]);
     }
   };
 
   const deleteTransaction = async (id: string) => {
     if (!user) return;
+
+    // Optimistic UI update
+    setTransactions(prev => prev.filter(t => t.id !== id));
+
     const { error } = await supabase
       .from('transactions')
       .delete()
       .eq('id', id);
-    if (error) console.error("Error deleting transaction:", error);
+
+    if (error) {
+      console.error("Error deleting transaction:", error);
+      // Revert if error (optional, but good practice would be to reload)
+      loadTransactions();
+    }
   };
 
   const settleTransaction = async (id: string) => {
     if (!user) return;
-    // For now, we delete when settled, could be changed to update 'cleared' status if soft delete is preferred
-    // Based on original logic, it seems it deletes. Let's stick to delete for "settle" unless we want soft delete.
-    // Actually, looking at original code: settleTransaction calls delete. 
-    // BUT detail modal has "cleared" check. Usually settle means mark cleared.
-    // The original code had:
-    // const settleTransaction = async (id) => { ... .delete().eq('id', id) }
-    // So it was deleting. I will keep it as delete for now to match behavior, 
-    // but typically a soft delete (update cleared=true) involves:
-    // .update({ cleared: true }).eq('id', id)
 
-    // START FIX: Let's use UPDATE to cleared=true so we keep history if desired?
-    // The original code explicitly commented: "Mark as cleared instead of deleting" BUT called delete().
-    // I will use delete() to maintain strict parity with what I read in Step 69.
+    // Optimistic UI update
+    setTransactions(prev => prev.filter(t => t.id !== id));
 
     const { error } = await supabase
       .from('transactions')
       .delete()
       .eq('id', id);
-    if (error) console.error("Error settling transaction:", error);
+
+    if (error) {
+      console.error("Error settling transaction:", error);
+      loadTransactions();
+    }
   };
 
   const addPayment = async (transactionId: string, payment: { amount: number; date: number; note?: string }) => {
@@ -204,11 +218,21 @@ function AppContent() {
     if (!transaction) return;
 
     const newPayments = [...(transaction.payments || []), { id: Date.now().toString(), ...payment }];
+
+    // Optimistic update
+    setTransactions(prev => prev.map(t =>
+      t.id === transactionId ? { ...t, payments: newPayments } : t
+    ));
+
     const { error } = await supabase
       .from('transactions')
       .update({ payments: newPayments })
       .eq('id', transactionId);
-    if (error) console.error("Error adding payment:", error);
+
+    if (error) {
+      console.error("Error adding payment:", error);
+      loadTransactions(); // Revert on error
+    }
   };
 
   const handleSettleVisuals = (transaction: any) => {
