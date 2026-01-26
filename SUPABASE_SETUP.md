@@ -57,17 +57,18 @@ CREATE INDEX idx_transactions_due_date ON transactions(due_date) WHERE due_date 
 ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
 
 -- Row Level Security Policies
+-- Row Level Security Policies
 -- Users can only view their own transactions
 CREATE POLICY "Users can view own transactions"
   ON transactions FOR SELECT
-  USING (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id);
 
 -- Users can only insert their own transactions
 CREATE POLICY "Users can insert own transactions"
   ON transactions FOR INSERT
   WITH CHECK (
-    auth.uid() = user_id
-    AND type IN ('credit', 'debt')P{__---}
+    (select auth.uid()) = user_id
+    AND type IN ('credit', 'debt')
     AND char_length(name) > 0 AND char_length(name) <= 100
     AND amount > 0 AND amount <= 999999999
   );
@@ -75,13 +76,13 @@ CREATE POLICY "Users can insert own transactions"
 -- Users can only update their own transactions
 CREATE POLICY "Users can update own transactions"
   ON transactions FOR UPDATE
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id)
+  WITH CHECK ((select auth.uid()) = user_id);
 
 -- Users can only delete their own transactions
 CREATE POLICY "Users can delete own transactions"
   ON transactions FOR DELETE
-  USING (auth.uid() = user_id);
+  USING ((select auth.uid()) = user_id);
 ```
 
 4. Click **"Run"** (or press Ctrl/Cmd + Enter)
