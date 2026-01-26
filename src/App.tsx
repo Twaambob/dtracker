@@ -2,13 +2,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Plus, TrendingUp, TrendingDown, Shield, Zap, PieChart, Activity,
-  Bell, AlertTriangle, LogOut, Download, Settings, Search
+  Bell, AlertTriangle, LogOut, Download, Settings, Search, Repeat
 } from 'lucide-react';
 import { AuthProvider, useAuth } from '@/context/auth-context';
 import { PreferencesProvider, usePreferences } from '@/context/preferences-context';
 import { supabase } from '@/lib/supabase';
 import { exportTransactionsToCSV } from '@/lib/export-utils';
 import { getUrgencyScore, isDueSoon, isOverdue } from '@/lib/transaction-utils';
+import { getRecurringTransactionsDueSoon } from '@/lib/recurring-utils';
+import type { RecurringTransaction } from '@/types';
 
 // Components
 import { AuthScreen } from '@/components/auth/auth-screen';
@@ -22,6 +24,9 @@ import { ReminderModal } from '@/components/ui/reminder-modal';
 import { SettingsDialog } from '@/components/settings/settings-dialog';
 import { SearchBar } from '@/components/search/search-bar';
 import { AddPaymentModal } from '@/components/payments/add-payment-modal';
+import { AddRecurringModal } from '@/components/recurring/add-recurring-modal';
+import { ManageRecurringModal } from '@/components/recurring/manage-recurring-modal';
+import { RecurringList } from '@/components/recurring/recurring-list';
 
 function AppContent() {
   const { user, loading: authLoading, signOut } = useAuth();
@@ -36,6 +41,11 @@ function AppContent() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [transactions, setTransactions] = useState<any[]>([]);
+
+  // Recurring transactions state
+  const [recurringTransactions, setRecurringTransactions] = useState<RecurringTransaction[]>([]);
+  const [isRecurringModalOpen, setIsRecurringModalOpen] = useState(false);
+  const [isManageRecurringOpen, setIsManageRecurringOpen] = useState(false);
 
   // State for selected transaction ID (snapshot of the ID, not the whole object)
   const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(null);
@@ -79,12 +89,28 @@ function AppContent() {
     }
   };
 
+  // Load recurring transactions
+  const loadRecurringTransactions = async () => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from('recurring_transactions')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('next_due_date', { ascending: true });
+
+    if (error) {
+      console.error("Error fetching recurring transactions:", error);
+    } else {
+      setRecurringTransactions(data || []);
+    }
+  };
+
   // Fetch and Subscribe to Transactions
   useEffect(() => {
     if (!user || !hasEntered) return;
 
     // Set up real-time subscription to transactions
-    const channel = supabase
+    const transactionsChannel = supabase
       .channel('transactions_changes')
       .on(
         'postgres_changes',
@@ -95,18 +121,35 @@ function AppContent() {
           filter: `user_id=eq.${user.id}`
         },
         () => {
-          // Keep real-time sync active (good for multi-device)
-          // But our local optimistic updates will handle immediate feedback
           loadTransactions();
+        }
+      )
+      .subscribe();
+
+    // Set up real-time subscription to recurring transactions
+    const recurringChannel = supabase
+      .channel('recurring_transactions_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'recurring_transactions',
+          filter: `user_id=eq.${user.id}`
+        },
+        () => {
+          loadRecurringTransactions();
         }
       )
       .subscribe();
 
     // Initial load
     loadTransactions();
+    loadRecurringTransactions();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(transactionsChannel);
+      supabase.removeChannel(recurringChannel);
     };
   }, [user, hasEntered]);
 
@@ -115,6 +158,12 @@ function AppContent() {
   const totalDebt = transactions.filter(t => t.type === 'debt' && !t.cleared).reduce((acc, curr) => acc + curr.amount, 0);
   const netWorth = totalCredit - totalDebt;
   const notifications = transactions.filter(t => (isDueSoon(t.dueDate) || isOverdue(t.dueDate)) && !t.cleared);
+
+  // Recurring transactions due soon
+  const recurringDueSoon = useMemo(() =>
+    getRecurringTransactionsDueSoon(recurringTransactions),
+    [recurringTransactions]
+  );
 
   // Search filtering
   const filteredTransactions = useMemo(() => {
@@ -245,6 +294,74 @@ function AppContent() {
     }
   };
 
+  // Recurring transactions CRUD operations
+  const addRecurringTransaction = async (transaction: any) => {
+    if (!user) return;
+
+    const dbTransaction = {
+      user_id: user.id,
+      type: transaction.type,
+      name: transaction.name,
+      amount: transaction.amount,
+      frequency: transaction.frequency,
+      start_date: transaction.start_date,
+      next_due_date: transaction.next_due_date,
+      category: transaction.category,
+      note: transaction.note,
+      contact: transaction.contact,
+      active: transaction.active
+    };
+
+    const { data, error } = await supabase
+      .from('recurring_transactions')
+      .insert([dbTransaction])
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error adding recurring transaction:", error);
+      alert(`Error adding recurring transaction: ${error.message}`);
+    } else if (data) {
+      setRecurringTransactions(prev => [data, ...prev]);
+    }
+  };
+
+  const toggleRecurringActive = async (id: string, active: boolean) => {
+    if (!user) return;
+
+    // Optimistic update
+    setRecurringTransactions(prev => prev.map(t =>
+      t.id === id ? { ...t, active } : t
+    ));
+
+    const { error } = await supabase
+      .from('recurring_transactions')
+      .update({ active })
+      .eq('id', id);
+
+    if (error) {
+      console.error("Error toggling recurring transaction:", error);
+      loadRecurringTransactions();
+    }
+  };
+
+  const deleteRecurringTransaction = async (id: string) => {
+    if (!user) return;
+
+    // Optimistic update
+    setRecurringTransactions(prev => prev.filter(t => t.id !== id));
+
+    const { error } = await supabase
+      .from('recurring_transactions')
+      .delete()
+      .eq('id', id);
+
+    if (error) {
+      console.error("Error deleting recurring transaction:", error);
+      loadRecurringTransactions();
+    }
+  };
+
   const handleSettleVisuals = (transaction: any) => {
     if (enableVisceralSatisfaction) {
       setActiveExplosion({
@@ -302,6 +419,21 @@ function AppContent() {
         formatCurrency={formatMoney}
       />
 
+      {/* Recurring Transaction Modals */}
+      <AddRecurringModal
+        isOpen={isRecurringModalOpen}
+        onClose={() => setIsRecurringModalOpen(false)}
+        onAdd={addRecurringTransaction}
+      />
+      <ManageRecurringModal
+        isOpen={isManageRecurringOpen}
+        onClose={() => setIsManageRecurringOpen(false)}
+        recurringTransactions={recurringTransactions}
+        onToggleActive={toggleRecurringActive}
+        onDelete={deleteRecurringTransaction}
+        onOpenAdd={() => setIsRecurringModalOpen(true)}
+      />
+
       <div className="relative z-10 min-w-[600px] max-w-7xl mx-auto px-4 py-4 min-h-screen flex flex-col">
         <header className="flex flex-row items-center justify-between gap-4 mb-8">
           <div className="flex items-center gap-3">
@@ -350,6 +482,14 @@ function AppContent() {
               {/* Desktop new entry button */}
               <button onClick={() => setIsModalOpen(true)} className="group flex items-center gap-2 bg-white/5 hover:bg-[#d4af37] hover:text-black border border-white/10 hover:border-[#d4af37] px-5 py-2.5 rounded-full transition-all duration-300 backdrop-blur-md">
                 <Plus size={18} /><span className="text-sm font-semibold">New Entry</span>
+              </button>
+              {/* Manage Recurring button */}
+              <button
+                onClick={() => setIsManageRecurringOpen(true)}
+                className="group flex items-center gap-2 bg-white/5 hover:bg-purple-600 hover:text-white border border-white/10 hover:border-purple-500 px-5 py-2.5 rounded-full transition-all duration-300 backdrop-blur-md"
+                title="Manage Recurring Transactions"
+              >
+                <Repeat size={18} /><span className="text-sm font-semibold">Recurring</span>
               </button>
               <button onClick={handleLogout} className="flex p-2.5 rounded-full bg-white/5 border border-white/10 hover:border-red-500 hover:text-red-500 transition-all text-gray-400" title="Lock Terminal"><LogOut size={20} /></button>
             </div>
@@ -407,6 +547,35 @@ function AppContent() {
                 <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">{notifications.length > 0 ? (<span className="text-red-400 font-bold flex items-center gap-1"><AlertTriangle size={10} /> {notifications.length} Due Soon</span>) : 'All Clear'}</p>
               </div>
             </div>
+
+            {/* Recurring Expenses Section */}
+            {recurringDueSoon.length > 0 && (
+              <div className="bg-[#121214]/50 border border-purple-500/20 rounded-3xl backdrop-blur-md flex flex-col overflow-hidden shadow-2xl animate-in fade-in slide-in-from-bottom-6 duration-700" style={{ animationDelay: '350ms' } as React.CSSProperties}>
+                <div className="flex items-center justify-between p-6 border-b border-purple-500/10 bg-gradient-to-r from-purple-900/10 to-transparent">
+                  <div className="flex items-center gap-2">
+                    <Repeat className="text-purple-400" size={20} />
+                    <h3 className="text-lg font-serif tracking-wide text-white">Recurring Expenses</h3>
+                    <span className="text-xs px-2 py-1 rounded bg-purple-900/40 text-purple-300 border border-purple-500/30 font-bold">
+                      {recurringDueSoon.length} due soon
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setIsRecurringModalOpen(true)}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-purple-900/30 hover:bg-purple-900/50 border border-purple-500/30 hover:border-purple-500/50 rounded-lg transition-all text-purple-300 hover:text-purple-200 text-xs font-semibold"
+                  >
+                    <Plus size={14} /> Add Recurring
+                  </button>
+                </div>
+                <div className="overflow-y-auto p-4 max-h-64 custom-scrollbar">
+                  <RecurringList
+                    recurringTransactions={recurringDueSoon}
+                    onSelect={() => { }}
+                    onToggleActive={toggleRecurringActive}
+                    onDelete={deleteRecurringTransaction}
+                  />
+                </div>
+              </div>
+            )}
 
             <div className="flex-1 bg-[#121214]/50 border border-white/5 rounded-3xl backdrop-blur-md flex flex-col overflow-hidden shadow-2xl min-h-[400px] animate-in fade-in slide-in-from-bottom-6 duration-700" style={{ animationDelay: '400ms' } as React.CSSProperties}>
               <div className="flex items-center justify-between p-6 border-b border-white/5">
