@@ -614,7 +614,10 @@ function AppContent() {
                 <div className="overflow-y-auto p-4 max-h-64 custom-scrollbar">
                   <RecurringList
                     recurringTransactions={recurringDueSoon}
-                    onSelect={() => { }}
+                    onSelect={(item) => {
+                      setSelectedRecurringTransaction(item);
+                      setIsEditRecurringOpen(true);
+                    }}
                     onToggleActive={toggleRecurringActive}
                     onDelete={deleteRecurringTransaction}
                   />
