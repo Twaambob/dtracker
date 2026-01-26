@@ -172,7 +172,6 @@ function AppContent() {
         const count = await processRecurringTransactions(freshRecurring, user.id);
         if (count > 0) {
           showAutoCreationNotification(count);
-          // State will update via real-time subscription
         }
       } catch (err) {
         console.error("Error in processRecurring loop:", err);
@@ -650,7 +649,14 @@ function AppContent() {
                 <div className="flex gap-2 text-xs"><span className="px-2 py-1 rounded bg-white/5 text-gray-400 border border-white/5">Sort: Recent</span></div>
               </div>
               <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-                {filteredTransactions.filter(t => { if (activeTab === 'dashboard') return true; if (activeTab === 'credits') return t.type === 'credit'; if (activeTab === 'debts') return t.type === 'debt'; return false; })
+                {filteredTransactions.filter(t => {
+                  if (activeTab === 'history') return t.cleared;
+                  if (t.cleared) return false;
+                  if (activeTab === 'dashboard') return true;
+                  if (activeTab === 'credits') return t.type === 'credit';
+                  if (activeTab === 'debts') return t.type === 'debt';
+                  return false;
+                })
                   .map(t => (<TransactionCard key={t.id} item={t} onClick={(t: any) => setSelectedTransactionId(t.id)} onSettle={handleSettleVisuals} onDelete={deleteTransaction} onRemind={setReminderItem} />))}
                 {filteredTransactions.length === 0 && searchQuery && (<div className="h-full flex flex-col items-center justify-center text-gray-600"><Search size={40} className="mb-4 opacity-20" /><p>No transactions match your search.</p><button onClick={() => setSearchQuery('')} className="mt-2 text-[#d4af37] hover:underline text-sm">Clear search</button></div>)}
                 {transactions.length === 0 && !searchQuery && (<div className="h-full flex flex-col items-center justify-center text-gray-600"><Zap size={40} className="mb-4 opacity-20" /><p>No active records found in the ledger.</p></div>)}
