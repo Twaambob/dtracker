@@ -63,6 +63,9 @@ function AppContent() {
   const [activeExplosion, setActiveExplosion] = useState<any>(null);
   const [paymentTransaction, setPaymentTransaction] = useState<any>(null);
 
+  // Lock to prevent concurrent recurring processing
+  const isProcessingRef = React.useRef(false);
+
   // Auto-enter if user is already logged in
   useEffect(() => {
     if (user && !authLoading) {
@@ -151,26 +154,42 @@ function AppContent() {
     loadTransactions();
     loadRecurringTransactions();
 
-    // Process recurring transactions on load and setup hourly check
+    // Process recurring transactions logic
+    // We fetch fresh data inside to avoid infinite re-renders or stale state
     const processRecurring = async () => {
-      if (!user) return;
-      const count = await processRecurringTransactions(recurringTransactions, user.id);
-      if (count > 0) {
-        showAutoCreationNotification(count);
-        loadTransactions(); // Reload to show new transactions
-        loadRecurringTransactions(); // Reload to update next_due_date
+      if (!user || isProcessingRef.current) return;
+      isProcessingRef.current = true;
+
+      try {
+        const { data: freshRecurring, error: fetchError } = await supabase
+          .from('recurring_transactions')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('active', true);
+
+        if (fetchError || !freshRecurring || freshRecurring.length === 0) return;
+
+        const count = await processRecurringTransactions(freshRecurring, user.id);
+        if (count > 0) {
+          showAutoCreationNotification(count);
+          // State will update via real-time subscription
+        }
+      } catch (err) {
+        console.error("Error in processRecurring loop:", err);
+      } finally {
+        isProcessingRef.current = false;
       }
     };
 
     processRecurring();
-    const interval = setInterval(processRecurring, 60 * 60 * 1000); // Check every hour
+    const interval = setInterval(processRecurring, 60 * 60 * 1000);
 
     return () => {
       supabase.removeChannel(transactionsChannel);
       supabase.removeChannel(recurringChannel);
       clearInterval(interval);
     };
-  }, [user, hasEntered, recurringTransactions]);
+  }, [user, hasEntered]); // NO recurringTransactions here - it causes infinite loops!
 
 
   const totalCredit = transactions.filter(t => t.type === 'credit' && !t.cleared).reduce((acc, curr) => acc + curr.amount, 0);
