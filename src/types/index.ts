@@ -40,5 +40,7 @@ export interface RecurringTransaction {
   active: boolean
   created_at: string
   updated_at: string
+  last_generated_date?: string
+  auto_create_transaction?: boolean
 }
 

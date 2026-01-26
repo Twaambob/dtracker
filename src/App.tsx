@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase';
 import { exportTransactionsToCSV } from '@/lib/export-utils';
 import { getUrgencyScore, isDueSoon, isOverdue } from '@/lib/transaction-utils';
 import { getRecurringTransactionsDueSoon } from '@/lib/recurring-utils';
+import { processRecurringTransactions, showAutoCreationNotification } from '@/lib/recurring-processor';
 import type { RecurringTransaction } from '@/types';
 
 // Components
@@ -25,6 +26,7 @@ import { SettingsDialog } from '@/components/settings/settings-dialog';
 import { SearchBar } from '@/components/search/search-bar';
 import { AddPaymentModal } from '@/components/payments/add-payment-modal';
 import { AddRecurringModal } from '@/components/recurring/add-recurring-modal';
+import { EditRecurringModal } from '@/components/recurring/edit-recurring-modal';
 import { ManageRecurringModal } from '@/components/recurring/manage-recurring-modal';
 import { RecurringList } from '@/components/recurring/recurring-list';
 
@@ -46,6 +48,8 @@ function AppContent() {
   const [recurringTransactions, setRecurringTransactions] = useState<RecurringTransaction[]>([]);
   const [isRecurringModalOpen, setIsRecurringModalOpen] = useState(false);
   const [isManageRecurringOpen, setIsManageRecurringOpen] = useState(false);
+  const [isEditRecurringOpen, setIsEditRecurringOpen] = useState(false);
+  const [selectedRecurringTransaction, setSelectedRecurringTransaction] = useState<RecurringTransaction | null>(null);
 
   // State for selected transaction ID (snapshot of the ID, not the whole object)
   const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(null);
@@ -147,11 +151,26 @@ function AppContent() {
     loadTransactions();
     loadRecurringTransactions();
 
+    // Process recurring transactions on load and setup hourly check
+    const processRecurring = async () => {
+      if (!user) return;
+      const count = await processRecurringTransactions(recurringTransactions, user.id);
+      if (count > 0) {
+        showAutoCreationNotification(count);
+        loadTransactions(); // Reload to show new transactions
+        loadRecurringTransactions(); // Reload to update next_due_date
+      }
+    };
+
+    processRecurring();
+    const interval = setInterval(processRecurring, 60 * 60 * 1000); // Check every hour
+
     return () => {
       supabase.removeChannel(transactionsChannel);
       supabase.removeChannel(recurringChannel);
+      clearInterval(interval);
     };
-  }, [user, hasEntered]);
+  }, [user, hasEntered, recurringTransactions]);
 
 
   const totalCredit = transactions.filter(t => t.type === 'credit' && !t.cleared).reduce((acc, curr) => acc + curr.amount, 0);
@@ -362,6 +381,25 @@ function AppContent() {
     }
   };
 
+  const updateRecurringTransaction = async (id: string, updates: any) => {
+    if (!user) return;
+
+    // Optimistic update
+    setRecurringTransactions(prev => prev.map(t =>
+      t.id === id ? { ...t, ...updates } : t
+    ));
+
+    const { error } = await supabase
+      .from('recurring_transactions')
+      .update(updates)
+      .eq('id', id);
+
+    if (error) {
+      console.error("Error updating recurring transaction:", error);
+      loadRecurringTransactions();
+    }
+  };
+
   const handleSettleVisuals = (transaction: any) => {
     if (enableVisceralSatisfaction) {
       setActiveExplosion({
@@ -377,6 +415,7 @@ function AppContent() {
     try {
       await signOut();
       setTransactions([]);
+      setRecurringTransactions([]);
       setHasEntered(false);
     }
     catch (error) { console.error("Logout failed:", error); }
@@ -424,6 +463,12 @@ function AppContent() {
         isOpen={isRecurringModalOpen}
         onClose={() => setIsRecurringModalOpen(false)}
         onAdd={addRecurringTransaction}
+      />
+      <EditRecurringModal
+        isOpen={isEditRecurringOpen}
+        onClose={() => setIsEditRecurringOpen(false)}
+        onUpdate={updateRecurringTransaction}
+        recurringTransaction={selectedRecurringTransaction}
       />
       <ManageRecurringModal
         isOpen={isManageRecurringOpen}
