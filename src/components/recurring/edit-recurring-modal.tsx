@@ -19,6 +19,7 @@ export const EditRecurringModal: React.FC<EditRecurringModalProps> = ({ isOpen, 
     const [category, setCategory] = useState<RecurringCategory>('other');
     const [note, setNote] = useState('');
     const [contact, setContact] = useState('');
+    const [autoCreate, setAutoCreate] = useState(true);
     const [validationError, setValidationError] = useState('');
 
     // Populate form when recurring transaction changes
@@ -32,6 +33,7 @@ export const EditRecurringModal: React.FC<EditRecurringModalProps> = ({ isOpen, 
             setCategory(recurringTransaction.category);
             setNote(recurringTransaction.note || '');
             setContact(recurringTransaction.contact || '');
+            setAutoCreate(recurringTransaction.auto_create_transaction !== false);
         }
     }, [recurringTransaction]);
 
@@ -65,7 +67,8 @@ export const EditRecurringModal: React.FC<EditRecurringModalProps> = ({ isOpen, 
             next_due_date: nextDue.toISOString().split('T')[0],
             category,
             note,
-            contact
+            contact,
+            auto_create_transaction: autoCreate
         });
 
         setValidationError('');
@@ -106,8 +109,8 @@ export const EditRecurringModal: React.FC<EditRecurringModalProps> = ({ isOpen, 
                             type="button"
                             onClick={() => setType('credit')}
                             className={`flex-1 py-2 rounded-md text-sm font-semibold transition-all duration-300 ${type === 'credit'
-                                    ? 'bg-emerald-900/40 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.3)]'
-                                    : 'text-gray-500 hover:text-gray-300'
+                                ? 'bg-emerald-900/40 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.3)]'
+                                : 'text-gray-500 hover:text-gray-300'
                                 }`}
                         >
                             They Owe Me
@@ -116,8 +119,8 @@ export const EditRecurringModal: React.FC<EditRecurringModalProps> = ({ isOpen, 
                             type="button"
                             onClick={() => setType('debt')}
                             className={`flex-1 py-2 rounded-md text-sm font-semibold transition-all duration-300 ${type === 'debt'
-                                    ? 'bg-red-900/40 text-red-400 shadow-[0_0_15px_rgba(239,68,68,0.3)]'
-                                    : 'text-gray-500 hover:text-gray-300'
+                                ? 'bg-red-900/40 text-red-400 shadow-[0_0_15px_rgba(239,68,68,0.3)]'
+                                : 'text-gray-500 hover:text-gray-300'
                                 }`}
                         >
                             I Owe Them
@@ -243,6 +246,25 @@ export const EditRecurringModal: React.FC<EditRecurringModalProps> = ({ isOpen, 
                                 rows={3}
                                 className="w-full bg-black/40 border border-white/10 rounded-xl py-2.5 px-4 text-white focus:outline-none focus:border-[#d4af37]/50 transition-all placeholder:text-gray-700 text-sm resize-none"
                             />
+                        </div>
+
+                        {/* Auto-create Toggle */}
+                        <div className="col-span-2 flex items-center justify-between p-4 bg-white/5 border border-white/10 rounded-xl">
+                            <div>
+                                <h4 className="text-sm font-medium text-white">Auto-create transactions</h4>
+                                <p className="text-[10px] text-gray-400">Automatically add a regular transaction when due</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setAutoCreate(!autoCreate)}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${autoCreate ? 'bg-[#d4af37]' : 'bg-white/10'
+                                    }`}
+                            >
+                                <span
+                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${autoCreate ? 'translate-x-6' : 'translate-x-1'
+                                        }`}
+                                />
+                            </button>
                         </div>
                     </div>
 

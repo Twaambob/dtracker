@@ -18,6 +18,7 @@ export const AddRecurringModal: React.FC<AddRecurringModalProps> = ({ isOpen, on
     const [category, setCategory] = useState<RecurringCategory>('other');
     const [note, setNote] = useState('');
     const [contact, setContact] = useState('');
+    const [autoCreate, setAutoCreate] = useState(true);
     const [validationError, setValidationError] = useState('');
 
     if (!isOpen) return null;
@@ -51,7 +52,8 @@ export const AddRecurringModal: React.FC<AddRecurringModalProps> = ({ isOpen, on
             category,
             note,
             contact,
-            active: true
+            active: true,
+            auto_create_transaction: autoCreate
         });
 
         // Reset form
@@ -235,6 +237,25 @@ export const AddRecurringModal: React.FC<AddRecurringModalProps> = ({ isOpen, on
                                 rows={3}
                                 className="w-full bg-black/40 border border-white/10 rounded-xl py-2.5 px-4 text-white focus:outline-none focus:border-[#d4af37]/50 transition-all placeholder:text-gray-700 text-sm resize-none"
                             />
+                        </div>
+
+                        {/* Auto-create Toggle */}
+                        <div className="col-span-2 flex items-center justify-between p-4 bg-white/5 border border-white/10 rounded-xl">
+                            <div>
+                                <h4 className="text-sm font-medium text-white">Auto-create transactions</h4>
+                                <p className="text-[10px] text-gray-400">Automatically add a regular transaction when due</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setAutoCreate(!autoCreate)}
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${autoCreate ? 'bg-[#d4af37]' : 'bg-white/10'
+                                    }`}
+                            >
+                                <span
+                                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${autoCreate ? 'translate-x-6' : 'translate-x-1'
+                                        }`}
+                                />
+                            </button>
                         </div>
                     </div>
 

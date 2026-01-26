@@ -295,11 +295,13 @@ function AppContent() {
     if (!user) return;
 
     // Optimistic UI update
-    setTransactions(prev => prev.filter(t => t.id !== id));
+    setTransactions(prev => prev.map(t =>
+      t.id === id ? { ...t, cleared: true } : t
+    ));
 
     const { error } = await supabase
       .from('transactions')
-      .delete()
+      .update({ cleared: true })
       .eq('id', id);
 
     if (error) {
