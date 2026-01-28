@@ -1,5 +1,6 @@
 // Service Worker for PWA
-const CACHE_NAME = 'sovereign-cache-v2';
+// Bump CACHE_NAME on deploy to force clients to refresh cached assets
+const CACHE_NAME = 'sovereign-cache-v3';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -32,6 +33,14 @@ self.addEventListener('activate', (event) => {
   );
   // Take control immediately
   self.clients.claim();
+  // Notify open clients that a new service worker has activated
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window' }).then(clients => {
+      for (const client of clients) {
+        try { client.postMessage({ type: 'SW_UPDATED' }); } catch (e) { /* ignore */ }
+      }
+    })
+  );
 });
 
 self.addEventListener('fetch', (event) => {

@@ -1,16 +1,25 @@
 
-import { useState } from 'react';
+import React, { useState, type ElementType } from 'react';
 import { MessageSquare, Shield, Crown, Skull, Check, Copy, X, Scroll } from 'lucide-react';
 import { usePreferences } from '@/context/preferences-context';
+import type { Transaction } from '@/types';
 
-export const ReminderModal = ({ isOpen, onClose, transaction }: any) => {
+interface ReminderModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    transaction?: Transaction | null;
+}
+
+export const ReminderModal: React.FC<ReminderModalProps> = ({ isOpen, onClose, transaction }) => {
     const { formatCurrency: formatMoney } = usePreferences();
     const [level, setLevel] = useState<'jester' | 'knight' | 'king' | 'executioner'>('jester');
     const [copied, setCopied] = useState(false);
 
     if (!isOpen || !transaction) return null;
 
-    const messages = {
+    type Level = 'jester' | 'knight' | 'king' | 'executioner';
+
+    const messages: Record<Level, { title: string; icon: ElementType; color: string; bg: string; border: string; text: string }> = {
         jester: {
             title: "Court Jester", icon: MessageSquare, color: "text-emerald-400", bg: "bg-emerald-900/20", border: "border-emerald-500/30",
             text: `Hey ${transaction.name.split(' ')[0]}! 👋 Just doing my monthly financial cleanup. Looks like there's still ${formatMoney(transaction.amount)} pending from ${transaction.note || 'our last exchange'}. No rush, just keeping the books tidy! 🃏`
@@ -54,14 +63,17 @@ export const ReminderModal = ({ isOpen, onClose, transaction }: any) => {
                 </div>
                 <div className="p-6 space-y-6">
                     <div className="grid grid-cols-4 gap-2">
-                        {(Object.entries(messages) as [string, any][]).map(([key, config]) => (
-                            <button key={key} onClick={() => setLevel(key as any)}
-                                className={`flex flex-col items-center justify-center p-2 rounded-lg border transition-all ${level === key ? `${config.bg} ${config.border} ${config.color} shadow-lg scale-105` : 'border-transparent hover:bg-white/5 text-gray-500'}`}
-                                title={config.title}>
-                                <config.icon size={20} />
-                                <span className="text-[10px] uppercase font-bold mt-1">{key}</span>
-                            </button>
-                        ))}
+                        {(Object.keys(messages) as Level[]).map((key) => {
+                            const config = messages[key];
+                            return (
+                                <button key={key} onClick={() => setLevel(key)}
+                                    className={`flex flex-col items-center justify-center p-2 rounded-lg border transition-all ${level === key ? `${config.bg} ${config.border} ${config.color} shadow-lg scale-105` : 'border-transparent hover:bg-white/5 text-gray-500'}`}
+                                    title={config.title}>
+                                    <config.icon size={20} />
+                                    <span className="text-[10px] uppercase font-bold mt-1">{key}</span>
+                                </button>
+                            )
+                        })}
                     </div>
                     <div className={`p-4 rounded-xl border ${currentMsg.border} ${currentMsg.bg} relative group transition-all duration-300`}>
                         <div className="absolute -top-3 left-4 px-2 bg-[#1a1a1a] text-xs font-bold text-gray-400 uppercase tracking-widest">Message Preview</div>

@@ -15,12 +15,17 @@ export const AuthScreen = ({ onEnter }: { onEnter: () => void }) => {
     const [errorMessage, setErrorMessage] = useState('');
     const [resetSent, setResetSent] = useState(false);
 
-    const handleAuthError = (error: any) => {
+    const hasCode = (e: unknown): e is { code?: string } => typeof e === 'object' && e !== null && 'code' in e && typeof (e as Record<string, unknown>).code === 'string';
+    const hasMessage = (e: unknown): e is { message?: string } => typeof e === 'object' && e !== null && 'message' in e && typeof (e as Record<string, unknown>).message === 'string';
+
+    const handleAuthError = (error: unknown) => {
         setIsLoading(false);
         let msg = 'Authentication failed. Please try again.';
-        if (error.code?.includes('auth/')) {
-            msg = error.message.replace(/Firebase: /g, '').replace(/\(auth-.*\)/g, '').trim();
-        } else { msg = error.message; }
+        if (hasCode(error) && error.code.includes('auth/')) {
+            if (hasMessage(error)) msg = error.message.replace(/Firebase: /g, '').replace(/\(auth-.*\)/g, '').trim();
+        } else if (hasMessage(error)) {
+            msg = error.message;
+        }
         setErrorMessage(msg);
         console.error(error);
     };

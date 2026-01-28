@@ -1,7 +1,26 @@
 
 import { useEffect, useRef } from 'react';
 
-export const ExplosionFX = ({ active, x, y, type, onComplete }: any) => {
+type Particle = {
+    x: number;
+    y: number;
+    vx: number;
+    vy: number;
+    size: number;
+    color: string;
+    life: number;
+    decay: number;
+};
+
+interface ExplosionFXProps {
+    active: boolean;
+    x: number;
+    y: number;
+    type?: string;
+    onComplete: () => void;
+}
+
+export const ExplosionFX: React.FC<ExplosionFXProps> = ({ active, x, y, type, onComplete }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
     useEffect(() => {
@@ -13,7 +32,7 @@ export const ExplosionFX = ({ active, x, y, type, onComplete }: any) => {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
 
-        let particles: any[] = [];
+        const particles: Particle[] = [];
         const particleCount = 60;
         const colors = type === 'debt'
             ? ['#ef4444', '#7f1d1d', '#111111', '#555555']

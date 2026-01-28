@@ -2,8 +2,17 @@
 import { TrendingUp, TrendingDown, Clock, Scroll, Check, X, ChevronRight } from 'lucide-react';
 import { usePreferences } from '@/context/preferences-context';
 import { isDueSoon, isOverdue } from '@/lib/transaction-utils';
+import type { Transaction } from '@/types';
 
-export const TransactionCard = ({ item, onClick, onSettle, onDelete, onRemind }: any) => {
+interface TransactionCardProps {
+    item: Transaction;
+    onClick: (t: Transaction) => void;
+    onSettle: (t: Transaction) => void;
+    onDelete: (id: string) => void;
+    onRemind: (t: Transaction) => void;
+}
+
+export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onClick, onSettle, onDelete, onRemind }) => {
     const { formatCurrency: formatMoney } = usePreferences();
     const isCredit = item.type === 'credit';
     const urgent = isDueSoon(item.dueDate) && !item.cleared;

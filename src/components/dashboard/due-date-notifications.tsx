@@ -7,14 +7,14 @@ import type { Debt } from "@/types"
 export function DueDateNotifications() {
   const { getDueDebts } = useDebts()
 
+  const { formatCurrency } = usePreferences()
+
   const dueToday = getDueDebts(1)
   const dueThisWeek = getDueDebts(7).filter((debt) => !dueToday.includes(debt))
 
   if (dueToday.length === 0 && dueThisWeek.length === 0) {
     return null
   }
-
-  const { formatCurrency } = usePreferences()
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr)

@@ -16,7 +16,7 @@
 export function sanitizeString(input: string, maxLength: number = 500): string {
   if (!input || typeof input !== 'string') return '';
 
-  let sanitized = input
+  const sanitized = input
     // Remove HTML tags
     .replace(/<[^>]*>/g, '')
     // Remove script protocol
@@ -261,7 +261,7 @@ export function containsSqlInjection(input: string): boolean {
     /(\bINSERT\b.*\bINTO\b)/i,
     /(\bDELETE\b.*\bFROM\b)/i,
     /(\bUPDATE\b.*\bSET\b)/i,
-    /(--|\#|\/\*|\*\/)/,  // SQL comment markers
+    /(--|#|\/\*|\*\/)/,  // SQL comment markers
     /(\bOR\b.*=.*\bOR\b)/i,
     /(\bAND\b.*=.*\bAND\b)/i,
   ];

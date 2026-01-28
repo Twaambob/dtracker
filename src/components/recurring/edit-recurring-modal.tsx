@@ -6,7 +6,18 @@ import { calculateNextDueDate } from '@/lib/recurring-utils';
 interface EditRecurringModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onUpdate: (id: string, transaction: any) => void;
+    onUpdate: (id: string, transaction: {
+        type: 'credit' | 'debt';
+        name: string;
+        amount: number;
+        frequency: RecurringFrequency;
+        start_date: string;
+        next_due_date: string;
+        category: RecurringCategory;
+        note?: string;
+        contact?: string;
+        auto_create_transaction?: boolean;
+    }) => void;
     recurringTransaction: RecurringTransaction | null;
 }
 
@@ -25,15 +36,19 @@ export const EditRecurringModal: React.FC<EditRecurringModalProps> = ({ isOpen, 
     // Populate form when recurring transaction changes
     useEffect(() => {
         if (recurringTransaction) {
-            setType(recurringTransaction.type);
-            setName(recurringTransaction.name);
-            setAmount(recurringTransaction.amount.toString());
-            setFrequency(recurringTransaction.frequency);
-            setStartDate(recurringTransaction.start_date);
-            setCategory(recurringTransaction.category);
-            setNote(recurringTransaction.note || '');
-            setContact(recurringTransaction.contact || '');
-            setAutoCreate(recurringTransaction.auto_create_transaction !== false);
+            // Defer state updates slightly to avoid synchronous setState warnings and cascading renders
+            const id = window.setTimeout(() => {
+                setType(recurringTransaction.type);
+                setName(recurringTransaction.name);
+                setAmount(recurringTransaction.amount.toString());
+                setFrequency(recurringTransaction.frequency);
+                setStartDate(recurringTransaction.start_date);
+                setCategory(recurringTransaction.category);
+                setNote(recurringTransaction.note || '');
+                setContact(recurringTransaction.contact || '');
+                setAutoCreate(recurringTransaction.auto_create_transaction !== false);
+            }, 0);
+            return () => clearTimeout(id);
         }
     }, [recurringTransaction]);
 

@@ -2,8 +2,17 @@
 import React, { useState } from 'react';
 import { X, User as UserIcon, DollarSign, Calendar, Mail, Zap, Check, AlertTriangle } from 'lucide-react';
 import { validateTransaction } from '@/lib/security';
+import type { Transaction } from '@/types';
 
-export const AddModal = ({ isOpen, onClose, onAdd }: any) => {
+type NewTransactionInput = Omit<Transaction, 'id' | 'createdAt' | 'cleared' | 'payments' | 'user_id'> & { dueDate?: string };
+
+interface AddModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+    onAdd: (t: NewTransactionInput) => void;
+}
+
+export const AddModal: React.FC<AddModalProps> = ({ isOpen, onClose, onAdd }) => {
     const [type, setType] = useState('debt');
     const [name, setName] = useState('');
     const [amount, setAmount] = useState('');

@@ -6,18 +6,22 @@ export function useDebts() {
   const [debts, setDebts] = useLocalStorage<Debt[]>("dtracker_debts", [])
 
   // Migration: add type and party fields to legacy debts
+  // Run migration once on mount
   useEffect(() => {
-    const needsMigration = debts.some((debt: any) => !debt.type || !debt.party)
+    const needsMigration = debts.some((debt) => !debt.type || !debt.party)
     if (needsMigration) {
       setDebts((prev) =>
-        prev.map((debt: any) => ({
-          ...debt,
-          type: debt.type || 'creditor',
-          party: debt.party || debt.lender || 'Unknown',
-        }))
+        prev.map((debt) => {
+          const lender = (debt as Record<string, unknown>)['lender'];
+          return {
+            ...debt,
+            type: debt.type || 'creditor',
+            party: debt.party || (typeof lender === 'string' ? lender : 'Unknown'),
+          }
+        })
       )
     }
-  }, [])
+  }, [debts, setDebts])
 
   const addDebt = (debt: Omit<Debt, "id" | "createdAt" | "updatedAt" | "payments" | "remainingAmount" | "status">) => {
     const newDebt: Debt = {

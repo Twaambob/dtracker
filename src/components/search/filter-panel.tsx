@@ -26,7 +26,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
 }) => {
   const hasActiveFilters = Object.values(filters).some(v => v !== undefined && v !== '');
 
-  const updateFilter = (key: keyof FilterState, value: any) => {
+  const updateFilter = (key: keyof FilterState, value: number | string | undefined) => {
     onChange({ ...filters, [key]: value || undefined });
   };
 

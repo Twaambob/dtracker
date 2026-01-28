@@ -3,8 +3,20 @@ import React from 'react';
 import { Zap, Target, Shield, ArrowRight, Check, Send, FileText, DollarSign } from 'lucide-react';
 import { usePreferences } from '@/context/preferences-context';
 import { isOverdue } from '@/lib/transaction-utils';
+import type { Transaction } from '@/types';
 
-export const NexusPanel = ({ topPriority, onSettle, onSelectTransaction }: any) => {
+interface NexusTopPriority {
+    transaction: Transaction;
+    score: number;
+}
+
+interface NexusPanelProps {
+    topPriority: NexusTopPriority | null | undefined;
+    onSettle: (t: Transaction) => void;
+    onSelectTransaction: (t: Transaction) => void;
+}
+
+export const NexusPanel: React.FC<NexusPanelProps> = ({ topPriority, onSettle, onSelectTransaction }) => {
     // Layout updated for mobile responsiveness
     const { formatCurrency: formatMoney } = usePreferences();
     if (!topPriority || topPriority.score < 100) {
@@ -55,7 +67,7 @@ export const NexusPanel = ({ topPriority, onSettle, onSelectTransaction }: any) 
                 <h4 className={`text-3xl font-mono font-extrabold mt-1 ${isDebt ? 'text-red-400' : 'text-emerald-400'}`}>{isDebt ? '-' : '+'}{formatMoney(transaction.amount)}</h4>
             </div>
             <div className="flex flex-col gap-2 mt-2">
-                <button onClick={(e) => { e.stopPropagation(); isDebt ? onSelectTransaction(transaction) : onSettle(transaction); }} className={`w-full py-2.5 px-2 rounded-xl font-bold transition-all flex justify-center items-center gap-2 text-xs ${actionColor}`}>
+                <button onClick={(e) => { e.stopPropagation(); if (isDebt) { onSelectTransaction(transaction); } else { onSettle(transaction); } }} className={`w-full py-2.5 px-2 rounded-xl font-bold transition-all flex justify-center items-center gap-2 text-xs ${actionColor}`}>
                     {React.createElement(actionIcon, { size: 14 })} {actionText}
                 </button>
                 <button onClick={(e) => { e.stopPropagation(); onSelectTransaction(transaction); }} className="w-full py-2 px-2 rounded-xl bg-white/5 hover:bg-white/10 text-white font-semibold transition-all flex justify-center items-center gap-2 text-xs text-gray-300">

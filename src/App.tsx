@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Plus, TrendingUp, TrendingDown, Shield, Zap, PieChart, Activity,
   Bell, AlertTriangle, LogOut, Download, Settings, Search, Repeat
@@ -11,7 +11,7 @@ import { exportTransactionsToCSV } from '@/lib/export-utils';
 import { getUrgencyScore, isDueSoon, isOverdue } from '@/lib/transaction-utils';
 import { getRecurringTransactionsDueSoon } from '@/lib/recurring-utils';
 import { processRecurringTransactions, showAutoCreationNotification } from '@/lib/recurring-processor';
-import type { RecurringTransaction } from '@/types';
+import type { RecurringTransaction, Transaction, RecurringFrequency, RecurringCategory } from '@/types';
 
 // Components
 import { AuthScreen } from '@/components/auth/auth-screen';
@@ -60,7 +60,8 @@ function AppContent() {
     , [transactions, selectedTransactionId]);
   const [hasEntered, setHasEntered] = useState(false);
   const [reminderItem, setReminderItem] = useState<import('@/types').Transaction | null>(null);
-  const [activeExplosion, setActiveExplosion] = useState<any>(null);
+  type Explosion = { active: boolean; x: number; y: number; type: 'credit' | 'debt' } | null;
+  const [activeExplosion, setActiveExplosion] = useState<Explosion>(null);
   const [paymentTransaction, setPaymentTransaction] = useState<import('@/types').Transaction | null>(null);
 
   // Lock to prevent concurrent recurring processing
@@ -74,7 +75,7 @@ function AppContent() {
   }, [user, authLoading]);
 
   // Load transactions function (hoisted to be available for error recovery)
-  const loadTransactions = async () => {
+  const loadTransactions = useCallback(async () => {
     if (!user) return;
     const { data, error } = await supabase
       .from('transactions')
@@ -94,10 +95,10 @@ function AppContent() {
       }));
       setTransactions(formattedData);
     }
-  };
+  }, [user]);
 
   // Load recurring transactions
-  const loadRecurringTransactions = async () => {
+  const loadRecurringTransactions = useCallback(async () => {
     if (!user) return;
     const { data, error } = await supabase
       .from('recurring_transactions')
@@ -110,7 +111,7 @@ function AppContent() {
     } else {
       setRecurringTransactions(data || []);
     }
-  };
+  }, [user]);
 
   // Fetch and Subscribe to Transactions
   useEffect(() => {
@@ -188,7 +189,7 @@ function AppContent() {
       supabase.removeChannel(recurringChannel);
       clearInterval(interval);
     };
-  }, [user, hasEntered]); // NO recurringTransactions here - it causes infinite loops!
+  }, [user, hasEntered, loadTransactions, loadRecurringTransactions]); // Included callbacks to satisfy exhaustive-deps
 
 
   const totalCredit = transactions.filter(t => t.type === 'credit' && !t.cleared).reduce((acc, curr) => acc + curr.amount, 0);
@@ -235,7 +236,7 @@ function AppContent() {
     return priorityTransaction ? { transaction: priorityTransaction, score: highestScore } : null;
   }, [transactions]);
 
-  const addTransaction = async (transaction: any) => {
+  const addTransaction = async (transaction: Omit<Transaction, 'id' | 'user_id' | 'createdAt' | 'payments' | 'cleared'> & { dueDate?: string; returnsPercentage?: number }) => {
     if (!user) return;
 
     // Map camelCase to snake_case for Supabase
@@ -334,7 +335,19 @@ function AppContent() {
   };
 
   // Recurring transactions CRUD operations
-  const addRecurringTransaction = async (transaction: any) => {
+  const addRecurringTransaction = async (transaction: {
+    type: 'credit' | 'debt';
+    name: string;
+    amount: number;
+    frequency: RecurringFrequency;
+    start_date: string;
+    next_due_date: string;
+    category: RecurringCategory;
+    note?: string;
+    contact?: string;
+    active?: boolean;
+    auto_create_transaction?: boolean;
+  }) => {
     if (!user) return;
 
     const dbTransaction = {
@@ -401,7 +414,7 @@ function AppContent() {
     }
   };
 
-  const updateRecurringTransaction = async (id: string, updates: any) => {
+  const updateRecurringTransaction = async (id: string, updates: Partial<RecurringTransaction>) => {
     if (!user) return;
 
     // Optimistic update
@@ -420,7 +433,7 @@ function AppContent() {
     }
   };
 
-  const handleSettleVisuals = (transaction: any) => {
+  const handleSettleVisuals = (transaction: Transaction) => {
     if (enableVisceralSatisfaction) {
       setActiveExplosion({
         active: true, x: window.innerWidth / 2, y: window.innerHeight / 2, type: transaction.type
@@ -479,7 +492,7 @@ function AppContent() {
           const returnsPct = paymentTransaction.returnsPercentage ?? paymentTransaction.returns_percentage ?? 0;
           const expectedReturns = returnsPct ? (amount * (returnsPct / 100)) : 0;
           const total = amount + expectedReturns;
-          const paid = (paymentTransaction.payments?.reduce((sum: number, p: any) => sum + p.amount, 0) || 0);
+          const paid = (paymentTransaction.payments?.reduce((sum: number, p: { id: string; amount: number; date: number; note?: string }) => sum + p.amount, 0) || 0);
           return Math.max(0, total - paid);
         })()}
         transactionName={paymentTransaction?.name || ''}
@@ -573,7 +586,7 @@ function AppContent() {
 
           <div className="flex flex-col w-52 shrink-0 gap-3">
             <div className="animate-in fade-in slide-in-from-left-4 duration-500" style={{ animationDelay: '50ms' } as React.CSSProperties}>
-              <NexusPanel topPriority={topPriority} onSettle={handleSettleVisuals} onSelectTransaction={(t: any) => setSelectedTransactionId(t.id)} />
+              <NexusPanel topPriority={topPriority} onSettle={handleSettleVisuals} onSelectTransaction={(t: Transaction) => setSelectedTransactionId(t.id)} />
             </div>
 
             <nav className="space-y-2 animate-in fade-in slide-in-from-left-4 duration-500" style={{ animationDelay: '150ms' } as React.CSSProperties}>
@@ -667,7 +680,7 @@ function AppContent() {
                   if (activeTab === 'debts') return t.type === 'debt';
                   return false;
                 })
-                  .map(t => (<TransactionCard key={t.id} item={t} onClick={(t: any) => setSelectedTransactionId(t.id)} onSettle={handleSettleVisuals} onDelete={deleteTransaction} onRemind={setReminderItem} />))}
+                  .map(t => (<TransactionCard key={t.id} item={t} onClick={(t: Transaction) => setSelectedTransactionId(t.id)} onSettle={handleSettleVisuals} onDelete={deleteTransaction} onRemind={setReminderItem} />))}
                 {filteredTransactions.length === 0 && searchQuery && (<div className="h-full flex flex-col items-center justify-center text-gray-600"><Search size={40} className="mb-4 opacity-20" /><p>No transactions match your search.</p><button onClick={() => setSearchQuery('')} className="mt-2 text-[#d4af37] hover:underline text-sm">Clear search</button></div>)}
                 {transactions.length === 0 && !searchQuery && (<div className="h-full flex flex-col items-center justify-center text-gray-600"><Zap size={40} className="mb-4 opacity-20" /><p>No active records found in the ledger.</p></div>)}
               </div>

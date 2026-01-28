@@ -3,8 +3,17 @@ import { X, Hash, Calendar, FileText, Mail, Clock, Check } from 'lucide-react';
 import { usePreferences } from '@/context/preferences-context';
 import { isDueSoon, isOverdue } from '@/lib/transaction-utils';
 import { PaymentHistory } from '@/components/payments/payment-history';
+import type { Transaction } from '@/types';
 
-export const DetailModal = ({ transaction, onClose, onSettle, onDelete, onAddPayment }: any) => {
+interface DetailModalProps {
+    transaction: Transaction | null;
+    onClose: () => void;
+    onSettle: (t: Transaction) => void;
+    onDelete: (id: string) => void;
+    onAddPayment: (t: Transaction) => void;
+}
+
+export const DetailModal: React.FC<DetailModalProps> = ({ transaction, onClose, onSettle, onDelete, onAddPayment }) => {
     const { formatCurrency: formatMoney } = usePreferences();
     if (!transaction) return null;
     const isCredit = transaction.type === 'credit';
@@ -15,7 +24,8 @@ export const DetailModal = ({ transaction, onClose, onSettle, onDelete, onAddPay
     const returnsPct = transaction.returnsPercentage ?? transaction.returns_percentage ?? null;
     const expectedReturns = returnsPct !== null && returnsPct !== undefined ? (Number(transaction.amount) * (returnsPct / 100)) : 0;
     const totalAmountWithReturns = Number(transaction.amount) + (expectedReturns || 0);
-    const totalPaid = (transaction.payments || []).reduce((sum: number, p: any) => sum + p.amount, 0);
+    const totalPaid = (transaction.payments || []).reduce((sum: number, p: { id: string; amount: number; date: number; note?: string }) => sum + p.amount, 0);
+    const createdAtStr = transaction.createdAt ? new Date(transaction.createdAt).toLocaleDateString() : 'Unknown';
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
@@ -38,7 +48,7 @@ export const DetailModal = ({ transaction, onClose, onSettle, onDelete, onAddPay
                 <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
                     <div className="grid grid-cols-2 gap-6">
                         <div className="space-y-1.5"><label className="flex items-center gap-2 text-[10px] text-gray-500 uppercase tracking-widest"><Hash size={12} /> Transaction ID</label><p className="text-sm font-mono text-gray-300 truncate">{transaction.id.slice(0, 8)}...</p></div>
-                        <div className="space-y-1.5"><label className="flex items-center gap-2 text-[10px] text-gray-500 uppercase tracking-widest"><Calendar size={12} /> Date Added</label><p className="text-sm text-white">{new Date(transaction.createdAt || Date.now()).toLocaleDateString()}</p></div>
+                        <div className="space-y-1.5"><label className="flex items-center gap-2 text-[10px] text-gray-500 uppercase tracking-widest"><Calendar size={12} /> Date Added</label><p className="text-sm text-white">{createdAtStr}</p></div>
                     </div>
 
                     {transaction.note && (<div className="space-y-1.5"><label className="flex items-center gap-2 text-[10px] text-gray-500 uppercase tracking-widest"><FileText size={12} /> Notes</label><p className="text-sm text-gray-300">{transaction.note}</p></div>)}

@@ -6,7 +6,19 @@ import { calculateNextDueDate } from '@/lib/recurring-utils';
 interface AddRecurringModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onAdd: (transaction: any) => void;
+    onAdd: (transaction: {
+        type: 'credit' | 'debt';
+        name: string;
+        amount: number;
+        frequency: RecurringFrequency;
+        start_date: string;
+        next_due_date: string;
+        category: RecurringCategory;
+        note?: string;
+        contact?: string;
+        active?: boolean;
+        auto_create_transaction?: boolean;
+    }) => void;
 }
 
 export const AddRecurringModal: React.FC<AddRecurringModalProps> = ({ isOpen, onClose, onAdd }) => {
