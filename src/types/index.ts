@@ -44,3 +44,23 @@ export interface RecurringTransaction {
   auto_create_transaction?: boolean
 }
 
+export interface Transaction {
+  id: string
+  user_id?: string
+  type: 'credit' | 'debt'
+  name: string
+  amount: number
+  note?: string
+  contact?: string
+  // DB snake_case
+  due_date?: string
+  returns_percentage?: number | null
+  created_at?: string
+  // Frontend camelCase
+  dueDate?: string
+  returnsPercentage?: number | null
+  createdAt?: string
+  cleared?: boolean
+  payments?: Array<{ id: string; amount: number; date: number; note?: string }>
+}
+

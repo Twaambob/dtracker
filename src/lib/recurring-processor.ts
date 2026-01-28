@@ -1,13 +1,11 @@
 import { supabase } from './supabase';
-import { calculateNextDueDate } from './recurring-utils';
 import type { RecurringTransaction } from '@/types';
 
 /**
  * Process recurring transactions and auto-create regular transactions when due
  */
 export const processRecurringTransactions = async (
-    recurringTransactions: RecurringTransaction[],
-    userId: string
+    recurringTransactions: RecurringTransaction[]
 ): Promise<number> => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -39,49 +37,21 @@ export const processRecurringTransactions = async (
             }
 
             try {
-                // Create regular transaction from recurring
-                const newTransaction = {
-                    user_id: userId,
-                    type: recurring.type,
-                    name: `${recurring.name} (Auto)`,
-                    amount: recurring.amount,
-                    note: recurring.note || `Auto-created from recurring transaction`,
-                    contact: recurring.contact,
-                    due_date: recurring.next_due_date,
-                    returns_percentage: null,
-                    cleared: false,
-                    created_at: new Date().toISOString()
-                };
+                // Call DB RPC to atomically create transaction and advance recurring row
+                const { data, error: rpcError } = await supabase.rpc('create_transaction_from_recurring', { rec_id: recurring.id });
 
-                const { error: insertError } = await supabase
-                    .from('transactions')
-                    .insert([newTransaction]);
-
-                if (insertError) {
-                    console.error('Error creating transaction from recurring:', insertError);
+                if (rpcError) {
+                    console.error('RPC error creating transaction from recurring:', rpcError);
                     continue;
                 }
 
-                // Calculate next due date
-                const newNextDue = calculateNextDueDate(nextDue, recurring.frequency);
-
-                // Update recurring transaction with new next_due_date and last_generated_date
-                const { error: updateError } = await supabase
-                    .from('recurring_transactions')
-                    .update({
-                        next_due_date: newNextDue.toISOString().split('T')[0],
-                        last_generated_date: nextDue.toISOString().split('T')[0]
-                    })
-                    .eq('id', recurring.id);
-
-                if (updateError) {
-                    console.error('Error updating recurring transaction:', updateError);
-                    continue;
+                // The RPC returns 1 when a transaction was created, 0 otherwise
+                const created = Array.isArray(data) ? data[0] : data;
+                if (created === 1 || created === '1') {
+                    transactionsCreated++;
                 }
-
-                transactionsCreated++;
             } catch (error) {
-                console.error('Error processing recurring transaction:', error);
+                console.error('Error processing recurring transaction RPC:', error);
             }
         }
     }

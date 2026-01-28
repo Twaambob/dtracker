@@ -42,7 +42,7 @@ function AppContent() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isNotifOpen, setIsNotifOpen] = useState(false);
-  const [transactions, setTransactions] = useState<any[]>([]);
+  const [transactions, setTransactions] = useState<import('@/types').Transaction[]>([]);
 
   // Recurring transactions state
   const [recurringTransactions, setRecurringTransactions] = useState<RecurringTransaction[]>([]);
@@ -59,9 +59,9 @@ function AppContent() {
     transactions.find(t => t.id === selectedTransactionId) || null
     , [transactions, selectedTransactionId]);
   const [hasEntered, setHasEntered] = useState(false);
-  const [reminderItem, setReminderItem] = useState<any>(null);
+  const [reminderItem, setReminderItem] = useState<import('@/types').Transaction | null>(null);
   const [activeExplosion, setActiveExplosion] = useState<any>(null);
-  const [paymentTransaction, setPaymentTransaction] = useState<any>(null);
+  const [paymentTransaction, setPaymentTransaction] = useState<import('@/types').Transaction | null>(null);
 
   // Lock to prevent concurrent recurring processing
   const isProcessingRef = React.useRef(false);
@@ -473,7 +473,15 @@ function AppContent() {
             setPaymentTransaction(null);
           }
         }}
-        remainingAmount={paymentTransaction ? (paymentTransaction.amount - (paymentTransaction.payments?.reduce((sum: number, p: any) => sum + p.amount, 0) || 0)) : 0}
+        remainingAmount={(() => {
+          if (!paymentTransaction) return 0;
+          const amount = Number(paymentTransaction.amount) || 0;
+          const returnsPct = paymentTransaction.returnsPercentage ?? paymentTransaction.returns_percentage ?? 0;
+          const expectedReturns = returnsPct ? (amount * (returnsPct / 100)) : 0;
+          const total = amount + expectedReturns;
+          const paid = (paymentTransaction.payments?.reduce((sum: number, p: any) => sum + p.amount, 0) || 0);
+          return Math.max(0, total - paid);
+        })()}
         transactionName={paymentTransaction?.name || ''}
         formatCurrency={formatMoney}
       />

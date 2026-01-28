@@ -8,6 +8,8 @@ export const TransactionCard = ({ item, onClick, onSettle, onDelete, onRemind }:
     const isCredit = item.type === 'credit';
     const urgent = isDueSoon(item.dueDate) && !item.cleared;
     const overdue = isOverdue(item.dueDate) && !item.cleared;
+    const returnsPct = item.returnsPercentage ?? item.returns_percentage ?? null;
+    const expectedReturns = returnsPct !== null && returnsPct !== undefined ? (item.amount * (returnsPct / 100)) : null;
 
     return (
         <div onClick={() => onClick(item)}
@@ -27,6 +29,9 @@ export const TransactionCard = ({ item, onClick, onSettle, onDelete, onRemind }:
                     </div>
                     <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
                         {item.dueDate ? (<span className={`flex items-center gap-1 ${!item.cleared && (urgent || overdue) ? 'text-orange-300' : ''}`}><Clock size={10} /> {new Date(item.dueDate).toLocaleDateString()}</span>) : (<span>{item.note || 'No details'}</span>)}
+                        {returnsPct !== null && (
+                            <span className="ml-2 text-xs text-gray-400">Returns: {returnsPct}%{expectedReturns !== null ? ` (${expectedReturns.toFixed(2)})` : ''}</span>
+                        )}
                     </div>
                 </div>
             </div>

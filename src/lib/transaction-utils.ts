@@ -15,7 +15,9 @@ export const isOverdue = (dateString?: string) => {
     return due < today;
 };
 
-export const getUrgencyScore = (transaction: any) => {
+import type { Transaction } from '@/types';
+
+export const getUrgencyScore = (transaction: Transaction) => {
     let score = 0;
     const dateString = transaction.dueDate;
     const amount = transaction.amount || 0;

@@ -11,6 +11,12 @@ export const DetailModal = ({ transaction, onClose, onSettle, onDelete, onAddPay
     const urgent = isDueSoon(transaction.dueDate) && !transaction.cleared;
     const overdue = isOverdue(transaction.dueDate) && !transaction.cleared;
 
+    // Support both camelCase and snake_case fields for returns percentage
+    const returnsPct = transaction.returnsPercentage ?? transaction.returns_percentage ?? null;
+    const expectedReturns = returnsPct !== null && returnsPct !== undefined ? (Number(transaction.amount) * (returnsPct / 100)) : 0;
+    const totalAmountWithReturns = Number(transaction.amount) + (expectedReturns || 0);
+    const totalPaid = (transaction.payments || []).reduce((sum: number, p: any) => sum + p.amount, 0);
+
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
             <div className="absolute inset-0 bg-black/90 backdrop-blur-md transition-opacity" onClick={onClose} />
@@ -21,12 +27,13 @@ export const DetailModal = ({ transaction, onClose, onSettle, onDelete, onAddPay
                         {isCredit ? 'Incoming Credit' : 'Outstanding Debt'}
                     </div>
                     <h2 className={`text-5xl font-mono font-bold tracking-tight mb-2 ${isCredit ? 'text-emerald-400' : 'text-red-400'}`}>
-                        {transaction.payments?.length > 0 ? formatMoney(transaction.amount - (transaction.payments.reduce((sum: number, p: any) => sum + p.amount, 0))) : formatMoney(transaction.amount)}
+                        {formatMoney(Math.max(0, totalAmountWithReturns - totalPaid))}
                     </h2>
-                    {transaction.payments?.length > 0 && (
-                        <p className="text-xs text-gray-500 font-mono">of {formatMoney(transaction.amount)} total</p>
-                    )}
+                    <p className="text-xs text-gray-500 font-mono">of {formatMoney(totalAmountWithReturns)} total</p>
                     <h3 className="text-xl text-white font-serif">{transaction.name}</h3>
+                    {returnsPct !== null && returnsPct !== undefined && (
+                        <p className="text-sm text-gray-400 mt-1">Expected Returns ({returnsPct}%): {formatMoney(expectedReturns || 0)}</p>
+                    )}
                 </div>
                 <div className="p-8 space-y-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
                     <div className="grid grid-cols-2 gap-6">
@@ -41,11 +48,11 @@ export const DetailModal = ({ transaction, onClose, onSettle, onDelete, onAddPay
                     {!transaction.cleared && (
                         <div className="pt-4 border-t border-white/10">
                             <PaymentHistory
-                                payments={transaction.payments || []}
-                                totalAmount={transaction.amount}
-                                onAddPayment={() => onAddPayment(transaction)}
-                                formatCurrency={formatMoney}
-                            />
+                                        payments={transaction.payments || []}
+                                        totalAmount={totalAmountWithReturns}
+                                        onAddPayment={() => onAddPayment(transaction)}
+                                        formatCurrency={formatMoney}
+                                    />
                         </div>
                     )}
 

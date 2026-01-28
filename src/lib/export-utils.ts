@@ -38,6 +38,7 @@ export function generateCSV(transactions: Transaction[]): string {
     'Due Date',
     'Contact',
     'Returns %',
+    'Expected Returns',
     'Notes'
   ];
 
@@ -57,6 +58,7 @@ export function generateCSV(transactions: Transaction[]): string {
       t.dueDate ? new Date(t.dueDate).toLocaleDateString() : '',
       escapeCSV(t.contact || ''),
       t.returnsPercentage?.toString() || '',
+      (t.returnsPercentage !== undefined && t.returnsPercentage !== null) ? ( (t.amount * (t.returnsPercentage/100)).toFixed(2) ) : '',
       escapeCSV(t.note || '')
     ];
   });
