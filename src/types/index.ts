@@ -52,7 +52,7 @@ export interface Transaction {
   amount: number
   note?: string
   contact?: string
-  // DB snake_case
+  // DB snake_case (optional as we transform to camelCase)
   due_date?: string
   returns_percentage?: number | null
   created_at?: string
@@ -61,6 +61,12 @@ export interface Transaction {
   returnsPercentage?: number | null
   createdAt?: string
   cleared?: boolean
-  payments?: Array<{ id: string; amount: number; date: number; note?: string }>
+  payments?: Array<{ id: string; amount: number; date: string | number; note?: string }>
 }
+
+export type NewTransactionInput = Omit<Transaction, 'id' | 'payments' | 'user_id' | 'createdAt'> & {
+  dueDate?: string;
+  createdAt?: string | number;
+  cleared: boolean;
+};
 

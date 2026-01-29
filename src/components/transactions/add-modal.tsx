@@ -2,9 +2,7 @@
 import React, { useState } from 'react';
 import { X, User as UserIcon, DollarSign, Calendar, Mail, Zap, Check, AlertTriangle } from 'lucide-react';
 import { validateTransaction } from '@/lib/security';
-import type { Transaction } from '@/types';
-
-type NewTransactionInput = Omit<Transaction, 'id' | 'createdAt' | 'cleared' | 'payments' | 'user_id'> & { dueDate?: string };
+import type { NewTransactionInput } from '@/types';
 
 interface AddModalProps {
     isOpen: boolean;
@@ -13,7 +11,7 @@ interface AddModalProps {
 }
 
 export const AddModal: React.FC<AddModalProps> = ({ isOpen, onClose, onAdd }) => {
-    const [type, setType] = useState('debt');
+    const [type, setType] = useState<'credit' | 'debt'>('debt');
     const [name, setName] = useState('');
     const [amount, setAmount] = useState('');
     const [note, setNote] = useState('');
@@ -39,7 +37,7 @@ export const AddModal: React.FC<AddModalProps> = ({ isOpen, onClose, onAdd }) =>
             returnsPercentage: returnsPercentage ? parseFloat(returnsPercentage) : undefined
         });
 
-        if (!validation.valid) {
+        if (!validation.valid || !validation.sanitized) {
             setValidationError(validation.errors.join(' '));
             return;
         }
@@ -47,7 +45,10 @@ export const AddModal: React.FC<AddModalProps> = ({ isOpen, onClose, onAdd }) =>
         // Use sanitized data
         onAdd({
             ...validation.sanitized,
-            createdAt: Date.now(),
+            name: validation.sanitized.name || '',
+            amount: validation.sanitized.amount || 0,
+            type: validation.sanitized.type as 'credit' | 'debt',
+            createdAt: new Date().toISOString(),
             cleared: false
         });
 

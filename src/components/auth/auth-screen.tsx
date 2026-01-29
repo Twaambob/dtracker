@@ -15,17 +15,21 @@ export const AuthScreen = ({ onEnter }: { onEnter: () => void }) => {
     const [errorMessage, setErrorMessage] = useState('');
     const [resetSent, setResetSent] = useState(false);
 
-    const hasCode = (e: unknown): e is { code?: string } => typeof e === 'object' && e !== null && 'code' in e && typeof (e as Record<string, unknown>).code === 'string';
-    const hasMessage = (e: unknown): e is { message?: string } => typeof e === 'object' && e !== null && 'message' in e && typeof (e as Record<string, unknown>).message === 'string';
-
     const handleAuthError = (error: unknown) => {
         setIsLoading(false);
         let msg = 'Authentication failed. Please try again.';
-        if (hasCode(error) && error.code.includes('auth/')) {
-            if (hasMessage(error)) msg = error.message.replace(/Firebase: /g, '').replace(/\(auth-.*\)/g, '').trim();
-        } else if (hasMessage(error)) {
-            msg = error.message;
+
+        if (typeof error === 'object' && error !== null) {
+            const err = error as Record<string, any>;
+            if (err.code && typeof err.code === 'string' && err.code.includes('auth/')) {
+                if (err.message && typeof err.message === 'string') {
+                    msg = err.message.replace(/Firebase: /g, '').replace(/\(auth-.*\)/g, '').trim();
+                }
+            } else if (err.message && typeof err.message === 'string') {
+                msg = err.message;
+            }
         }
+
         setErrorMessage(msg);
         console.error(error);
     };

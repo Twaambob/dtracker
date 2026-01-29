@@ -1,7 +1,7 @@
 
 import { X, Hash, Calendar, FileText, Mail, Clock, Check } from 'lucide-react';
 import { usePreferences } from '@/context/preferences-context';
-import { isDueSoon, isOverdue } from '@/lib/transaction-utils';
+import { isDueSoon, isOverdue, getTransactionTotalAmount, getTransactionRemainingAmount } from '@/lib/transaction-utils';
 import { PaymentHistory } from '@/components/payments/payment-history';
 import type { Transaction } from '@/types';
 
@@ -22,9 +22,9 @@ export const DetailModal: React.FC<DetailModalProps> = ({ transaction, onClose, 
 
     // Support both camelCase and snake_case fields for returns percentage
     const returnsPct = transaction.returnsPercentage ?? transaction.returns_percentage ?? null;
-    const expectedReturns = returnsPct !== null && returnsPct !== undefined ? (Number(transaction.amount) * (returnsPct / 100)) : 0;
-    const totalAmountWithReturns = Number(transaction.amount) + (expectedReturns || 0);
-    const totalPaid = (transaction.payments || []).reduce((sum: number, p: { id: string; amount: number; date: number; note?: string }) => sum + p.amount, 0);
+    const totalAmountWithReturns = getTransactionTotalAmount(transaction);
+    const remainingAmount = getTransactionRemainingAmount(transaction);
+    const expectedReturns = totalAmountWithReturns - Number(transaction.amount);
     const createdAtStr = transaction.createdAt ? new Date(transaction.createdAt).toLocaleDateString() : 'Unknown';
 
     return (
@@ -37,7 +37,7 @@ export const DetailModal: React.FC<DetailModalProps> = ({ transaction, onClose, 
                         {isCredit ? 'Incoming Credit' : 'Outstanding Debt'}
                     </div>
                     <h2 className={`text-5xl font-mono font-bold tracking-tight mb-2 ${isCredit ? 'text-emerald-400' : 'text-red-400'}`}>
-                        {formatMoney(Math.max(0, totalAmountWithReturns - totalPaid))}
+                        {formatMoney(remainingAmount)}
                     </h2>
                     <p className="text-xs text-gray-500 font-mono">of {formatMoney(totalAmountWithReturns)} total</p>
                     <h3 className="text-xl text-white font-serif">{transaction.name}</h3>
@@ -58,11 +58,11 @@ export const DetailModal: React.FC<DetailModalProps> = ({ transaction, onClose, 
                     {!transaction.cleared && (
                         <div className="pt-4 border-t border-white/10">
                             <PaymentHistory
-                                        payments={transaction.payments || []}
-                                        totalAmount={totalAmountWithReturns}
-                                        onAddPayment={() => onAddPayment(transaction)}
-                                        formatCurrency={formatMoney}
-                                    />
+                                payments={(transaction.payments || []) as any}
+                                totalAmount={totalAmountWithReturns}
+                                onAddPayment={() => onAddPayment(transaction)}
+                                formatCurrency={formatMoney}
+                            />
                         </div>
                     )}
 

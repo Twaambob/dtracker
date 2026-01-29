@@ -8,7 +8,7 @@ import { AuthProvider, useAuth } from '@/context/auth-context';
 import { PreferencesProvider, usePreferences } from '@/context/preferences-context';
 import { supabase } from '@/lib/supabase';
 import { exportTransactionsToCSV } from '@/lib/export-utils';
-import { getUrgencyScore, isDueSoon, isOverdue } from '@/lib/transaction-utils';
+import { getUrgencyScore, isDueSoon, isOverdue, getTransactionTotalAmount } from '@/lib/transaction-utils';
 import { getRecurringTransactionsDueSoon } from '@/lib/recurring-utils';
 import { processRecurringTransactions, showAutoCreationNotification } from '@/lib/recurring-processor';
 import type { RecurringTransaction, Transaction, RecurringFrequency, RecurringCategory } from '@/types';
@@ -42,7 +42,7 @@ function AppContent() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isNotifOpen, setIsNotifOpen] = useState(false);
-  const [transactions, setTransactions] = useState<import('@/types').Transaction[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
 
   // Recurring transactions state
   const [recurringTransactions, setRecurringTransactions] = useState<RecurringTransaction[]>([]);
@@ -59,10 +59,10 @@ function AppContent() {
     transactions.find(t => t.id === selectedTransactionId) || null
     , [transactions, selectedTransactionId]);
   const [hasEntered, setHasEntered] = useState(false);
-  const [reminderItem, setReminderItem] = useState<import('@/types').Transaction | null>(null);
+  const [reminderItem, setReminderItem] = useState<Transaction | null>(null);
   type Explosion = { active: boolean; x: number; y: number; type: 'credit' | 'debt' } | null;
   const [activeExplosion, setActiveExplosion] = useState<Explosion>(null);
-  const [paymentTransaction, setPaymentTransaction] = useState<import('@/types').Transaction | null>(null);
+  const [paymentTransaction, setPaymentTransaction] = useState<Transaction | null>(null);
 
   // Lock to prevent concurrent recurring processing
   const isProcessingRef = React.useRef(false);
@@ -192,8 +192,8 @@ function AppContent() {
   }, [user, hasEntered, loadTransactions, loadRecurringTransactions]); // Included callbacks to satisfy exhaustive-deps
 
 
-  const totalCredit = transactions.filter(t => t.type === 'credit' && !t.cleared).reduce((acc, curr) => acc + curr.amount, 0);
-  const totalDebt = transactions.filter(t => t.type === 'debt' && !t.cleared).reduce((acc, curr) => acc + curr.amount, 0);
+  const totalCredit = transactions.filter(t => t.type === 'credit' && !t.cleared).reduce((acc, curr) => acc + getTransactionTotalAmount(curr), 0);
+  const totalDebt = transactions.filter(t => t.type === 'debt' && !t.cleared).reduce((acc, curr) => acc + getTransactionTotalAmount(curr), 0);
   const netWorth = totalCredit - totalDebt;
   const notifications = transactions.filter(t => (isDueSoon(t.dueDate) || isOverdue(t.dueDate)) && !t.cleared);
 
@@ -236,7 +236,7 @@ function AppContent() {
     return priorityTransaction ? { transaction: priorityTransaction, score: highestScore } : null;
   }, [transactions]);
 
-  const addTransaction = async (transaction: Omit<Transaction, 'id' | 'user_id' | 'createdAt' | 'payments' | 'cleared'> & { dueDate?: string; returnsPercentage?: number }) => {
+  const addTransaction = async (transaction: Omit<Transaction, 'id' | 'user_id' | 'createdAt' | 'payments' | 'cleared'> & { dueDate?: string; returnsPercentage?: number; cleared: boolean }) => {
     if (!user) return;
 
     // Map camelCase to snake_case for Supabase
@@ -492,7 +492,7 @@ function AppContent() {
           const returnsPct = paymentTransaction.returnsPercentage ?? paymentTransaction.returns_percentage ?? 0;
           const expectedReturns = returnsPct ? (amount * (returnsPct / 100)) : 0;
           const total = amount + expectedReturns;
-          const paid = (paymentTransaction.payments?.reduce((sum: number, p: { id: string; amount: number; date: number; note?: string }) => sum + p.amount, 0) || 0);
+          const paid = (paymentTransaction.payments?.reduce((sum: number, p: { id: string; amount: number; date: string | number; note?: string }) => sum + p.amount, 0) || 0);
           return Math.max(0, total - paid);
         })()}
         transactionName={paymentTransaction?.name || ''}
@@ -542,7 +542,7 @@ function AppContent() {
             <div className="flex gap-4 items-center justify-start">
               {/* Export button - hidden on mobile */}
               <button
-                onClick={() => exportTransactionsToCSV(transactions)}
+                onClick={() => exportTransactionsToCSV(transactions as any)}
                 className="flex p-2.5 rounded-full bg-white/5 border border-white/10 hover:border-emerald-500 hover:text-emerald-400 transition-all text-gray-400"
                 title="Export to CSV"
               >
@@ -561,7 +561,7 @@ function AppContent() {
                 {isNotifOpen && (
                   <div className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-2rem)] bg-[#1a1a1a] border border-[#d4af37]/30 rounded-xl shadow-2xl z-50 overflow-hidden">
                     <div className="p-3 border-b border-white/10 bg-[#222]"><h4 className="text-sm font-bold text-[#d4af37] flex items-center gap-2"><AlertTriangle size={14} /> Urgent Attention</h4></div>
-                    <div className="max-h-60 overflow-y-auto">{notifications.length === 0 ? (<p className="p-4 text-xs text-gray-500 text-center">No urgent payments due.</p>) : (notifications.map(n => (<div key={n.id} onClick={() => { setSelectedTransactionId(n.id); setIsNotifOpen(false); }} className="cursor-pointer p-3 border-b border-white/5 hover:bg-white/5 transition-colors flex justify-between items-center"><div><p className="text-sm font-medium text-white">{n.name}</p><p className="text-[10px] text-gray-400">Due: {new Date(n.dueDate).toLocaleDateString()}</p></div><span className={`text-xs font-mono font-bold ${n.type === 'credit' ? 'text-emerald-400' : 'text-red-400'}`}>{formatMoney(n.amount)}</span></div>)))}</div>
+                    <div className="max-h-60 overflow-y-auto">{notifications.length === 0 ? (<p className="p-4 text-xs text-gray-500 text-center">No urgent payments due.</p>) : (notifications.map(n => (<div key={n.id} onClick={() => { setSelectedTransactionId(n.id); setIsNotifOpen(false); }} className="cursor-pointer p-3 border-b border-white/5 hover:bg-white/5 transition-colors flex justify-between items-center"><div><p className="text-sm font-medium text-white">{n.name}</p><p className="text-[10px] text-gray-400">Due: {n.dueDate ? new Date(n.dueDate).toLocaleDateString() : 'N/A'}</p></div><span className={`text-xs font-mono font-bold ${n.type === 'credit' ? 'text-emerald-400' : 'text-red-400'}`}>{formatMoney(n.amount)}</span></div>)))}</div>
                   </div>
                 )}
               </div>
@@ -689,7 +689,18 @@ function AppContent() {
         </div>
       </div >
 
-      <AddModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onAdd={addTransaction} />
+      <AddModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} onAdd={(t) => {
+        addTransaction({
+          type: t.type,
+          name: t.name,
+          amount: t.amount,
+          note: t.note,
+          contact: t.contact,
+          dueDate: t.dueDate,
+          returnsPercentage: t.returnsPercentage ?? undefined,
+          cleared: t.cleared ?? false
+        });
+      }} />
       {selectedTransaction && <DetailModal transaction={selectedTransaction} onClose={() => setSelectedTransactionId(null)} onSettle={handleSettleVisuals} onDelete={deleteTransaction} onAddPayment={setPaymentTransaction} />}
       <ReminderModal isOpen={!!reminderItem} onClose={() => setReminderItem(null)} transaction={reminderItem} />
 

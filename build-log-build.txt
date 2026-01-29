@@ -1,0 +1,32 @@
+﻿
+> dtracker@0.0.0 build
+> tsc -b && vite build
+
+src/App.tsx(173,74): error TS2554: Expected 1 arguments, but got 2.
+src/App.tsx(252,28): error TS2339: Property 'cleared' does not exist on type 'Omit<Transaction, "id" | "createdAt" | "cleared" | "payments" | "user_id"> & { dueDate?: string | undefined; returnsPercentage?: number | undefined; }'.
+src/App.tsx(545,56): error TS2345: Argument of type 'import("C:/Users/Twaambo/Documents/GitHub/dtracker/src/types/index").Transaction[]' is not assignable to parameter of type 'Transaction[]'.
+  Type 'import("C:/Users/Twaambo/Documents/GitHub/dtracker/src/types/index").Transaction' is not assignable to type 'Transaction'.
+    Types of property 'cleared' are incompatible.
+      Type 'boolean | undefined' is not assignable to type 'boolean'.
+        Type 'undefined' is not assignable to type 'boolean'.
+src/App.tsx(564,537): error TS2769: No overload matches this call.
+  Overload 1 of 4, '(value: string | number | Date): Date', gave the following error.
+    Argument of type 'string | undefined' is not assignable to parameter of type 'string | number | Date'.
+      Type 'undefined' is not assignable to type 'string | number | Date'.
+  Overload 2 of 4, '(value: string | number): Date', gave the following error.
+    Argument of type 'string | undefined' is not assignable to parameter of type 'string | number'.
+      Type 'undefined' is not assignable to type 'string | number'.
+src/App.tsx(692,76): error TS2322: Type '(transaction: Omit<Transaction, "id" | "user_id" | "createdAt" | "payments" | "cleared"> & { dueDate?: string; returnsPercentage?: number; }) => Promise<void>' is not assignable to type '(t: NewTransactionInput) => void'.
+  Types of parameters 'transaction' and 't' are incompatible.
+    Type 'NewTransactionInput' is not assignable to type 'Omit<Transaction, "id" | "createdAt" | "cleared" | "payments" | "user_id"> & { dueDate?: string | undefined; returnsPercentage?: number | undefined; }'.
+      Type 'NewTransactionInput' is not assignable to type '{ dueDate?: string | undefined; returnsPercentage?: number | undefined; }'.
+        Types of property 'returnsPercentage' are incompatible.
+          Type 'number | null | undefined' is not assignable to type 'number | undefined'.
+            Type 'null' is not assignable to type 'number | undefined'.
+src/components/auth/auth-screen.tsx(24,31): error TS18048: 'error.code' is possibly 'undefined'.
+src/components/auth/auth-screen.tsx(25,42): error TS18048: 'error.message' is possibly 'undefined'.
+src/components/auth/auth-screen.tsx(27,13): error TS2322: Type 'string | undefined' is not assignable to type 'string'.
+  Type 'undefined' is not assignable to type 'string'.
+src/components/transactions/add-modal.tsx(50,13): error TS2561: Object literal may only specify known properties, but 'createdAt' does not exist in type 'NewTransactionInput'. Did you mean to write 'created_at'?
+src/hooks/use-debts.ts(15,27): error TS2352: Conversion of type 'Debt' to type 'Record<string, unknown>' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Index signature for type 'string' is missing in type 'Debt'.

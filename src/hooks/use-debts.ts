@@ -12,7 +12,7 @@ export function useDebts() {
     if (needsMigration) {
       setDebts((prev) =>
         prev.map((debt) => {
-          const lender = (debt as Record<string, unknown>)['lender'];
+          const lender = (debt as any).lender;
           return {
             ...debt,
             type: debt.type || 'creditor',

@@ -60,7 +60,7 @@ export function PreferencesProvider({ children }: { children: React.ReactNode })
       style: 'currency',
       currency: currency,
       minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
+      maximumFractionDigits: 2,
     }).format(amount)
   }
 

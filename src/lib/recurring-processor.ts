@@ -5,7 +5,8 @@ import type { RecurringTransaction } from '@/types';
  * Process recurring transactions and auto-create regular transactions when due
  */
 export const processRecurringTransactions = async (
-    recurringTransactions: RecurringTransaction[]
+    recurringTransactions: RecurringTransaction[],
+    _user_id: string
 ): Promise<number> => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);

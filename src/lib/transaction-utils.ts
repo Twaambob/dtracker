@@ -17,10 +17,23 @@ export const isOverdue = (dateString?: string) => {
 
 import type { Transaction } from '@/types';
 
+export const getTransactionTotalAmount = (transaction: Transaction): number => {
+    const amount = Number(transaction.amount) || 0;
+    const returnsPct = transaction.returnsPercentage ?? transaction.returns_percentage ?? 0;
+    const returnsAmount = (amount * (returnsPct / 100));
+    return amount + returnsAmount;
+};
+
+export const getTransactionRemainingAmount = (transaction: Transaction): number => {
+    const total = getTransactionTotalAmount(transaction);
+    const paid = (transaction.payments || []).reduce((sum, p) => sum + p.amount, 0);
+    return Math.max(0, total - paid);
+};
+
 export const getUrgencyScore = (transaction: Transaction) => {
     let score = 0;
     const dateString = transaction.dueDate;
-    const amount = transaction.amount || 0;
+    const totalAmount = getTransactionTotalAmount(transaction);
     score += transaction.type === 'debt' ? 100 : 50;
     if (!dateString) { score -= 50; }
     else {
@@ -33,7 +46,7 @@ export const getUrgencyScore = (transaction: Transaction) => {
         else if (diffDays <= 7) { score += 150; }
         else if (diffDays <= 30) { score += 20; }
     }
-    score += amount / 10;
+    score += totalAmount / 10;
     if (!transaction.cleared) { score += 10; }
     return Math.round(score);
 };

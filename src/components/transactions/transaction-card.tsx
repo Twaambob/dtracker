@@ -1,7 +1,7 @@
 
 import { TrendingUp, TrendingDown, Clock, Scroll, Check, X, ChevronRight } from 'lucide-react';
 import { usePreferences } from '@/context/preferences-context';
-import { isDueSoon, isOverdue } from '@/lib/transaction-utils';
+import { isDueSoon, isOverdue, getTransactionTotalAmount } from '@/lib/transaction-utils';
 import type { Transaction } from '@/types';
 
 interface TransactionCardProps {
@@ -18,7 +18,7 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onClick,
     const urgent = isDueSoon(item.dueDate) && !item.cleared;
     const overdue = isOverdue(item.dueDate) && !item.cleared;
     const returnsPct = item.returnsPercentage ?? item.returns_percentage ?? null;
-    const expectedReturns = returnsPct !== null && returnsPct !== undefined ? (item.amount * (returnsPct / 100)) : null;
+    const totalAmount = getTransactionTotalAmount(item);
 
     return (
         <div onClick={() => onClick(item)}
@@ -39,13 +39,13 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ item, onClick,
                     <div className="flex items-center gap-3 mt-1 text-xs text-gray-500">
                         {item.dueDate ? (<span className={`flex items-center gap-1 ${!item.cleared && (urgent || overdue) ? 'text-orange-300' : ''}`}><Clock size={10} /> {new Date(item.dueDate).toLocaleDateString()}</span>) : (<span>{item.note || 'No details'}</span>)}
                         {returnsPct !== null && (
-                            <span className="ml-2 text-xs text-gray-400">Returns: {returnsPct}%{expectedReturns !== null ? ` (${expectedReturns.toFixed(2)})` : ''}</span>
+                            <span className="ml-2 text-xs text-gray-400">Returns: {returnsPct}% ({formatMoney(totalAmount - item.amount)})</span>
                         )}
                     </div>
                 </div>
             </div>
             <div className="flex items-center gap-4 pl-4">
-                <span className={`font-mono font-bold text-lg whitespace-nowrap ${item.cleared ? 'text-gray-400 line-through opacity-50' : isCredit ? 'text-emerald-400' : 'text-red-400'}`}>{isCredit ? '+' : '-'}{formatMoney(item.amount)}</span>
+                <span className={`font-mono font-bold text-lg whitespace-nowrap ${item.cleared ? 'text-gray-400 line-through opacity-50' : isCredit ? 'text-emerald-400' : 'text-red-400'}`}>{isCredit ? '+' : '-'}{formatMoney(totalAmount)}</span>
                 <div className="flex gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                     {!item.cleared && isCredit && (
                         <button onClick={(e) => { e.stopPropagation(); onRemind(item); }} title="Send Royal Decree"
